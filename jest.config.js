@@ -7,16 +7,4 @@ module.exports = {
   moduleFileExtensions: ['ts', 'js', 'json'],
   collectCoverageFrom: ['src/**/*.ts', '!src/**/*.test.ts'],
   coverageDirectory: 'coverage',
-  transformIgnorePatterns: [
-    'node_modules/(?!(uuid)/)'
-  ],
-  transform: {
-    '^.+\\.tsx?$': ['ts-jest', {
-      useESM: false
-    }],
-    '^.+\\.js$': 'babel-jest'
-  },
-  moduleNameMapper: {
-    '^uuid$': require.resolve('uuid')
-  }
 };
