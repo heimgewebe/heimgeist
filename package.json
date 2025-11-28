@@ -1,0 +1,45 @@
+{
+  "name": "heimgeist",
+  "version": "1.0.0",
+  "description": "Heimgeist - System Self-Reflection Engine",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "bin": {
+    "heimgeist": "dist/cli/index.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "ts-node src/cli/index.ts",
+    "start": "node dist/cli/index.js",
+    "serve": "ts-node src/cli/index.ts serve",
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "test:coverage": "jest --coverage",
+    "lint": "tsc --noEmit",
+    "clean": "rm -rf dist coverage"
+  },
+  "keywords": [
+    "heimgewebe",
+    "self-reflection",
+    "system-analysis",
+    "automation"
+  ],
+  "author": "Heimgewebe",
+  "license": "MIT",
+  "devDependencies": {
+    "@types/express": "^5.0.5",
+    "@types/jest": "^30.0.0",
+    "@types/node": "^24.10.1",
+    "jest": "^30.2.0",
+    "ts-jest": "^29.4.5",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.9.3"
+  },
+  "dependencies": {
+    "@types/uuid": "^9.0.8",
+    "commander": "^14.0.2",
+    "express": "^5.1.0",
+    "uuid": "^9.0.1",
+    "yaml": "^2.8.1"
+  }
+}
