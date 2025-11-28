@@ -1,0 +1,42 @@
+# Heimgeist Configuration Example
+# Copy this to .heimgeist/config.yml and customize as needed
+
+# Autonomy Level (0-3)
+# 0 - Passive:   Reacts only to direct requests
+# 1 - Observing: Notes issues, only pings when asked
+# 2 - Warning:   Proactively analyzes, needs confirmation for actions
+# 3 - Operative: Can trigger guards, analyses, and propose changes
+autonomyLevel: 2
+
+# Active Roles
+# - observer:  Reads events and extracts context
+# - critic:    Detects drift, errors, patterns, policy violations
+# - director:  Plans tool chains, decides when to act
+# - archivist: Writes insights to storage
+activeRoles:
+  - observer
+  - critic
+  - director
+  - archivist
+
+# Policies define what actions are allowed at each autonomy level
+# (these are in addition to the built-in policies)
+policies: []
+
+# Event sources - where Heimgeist receives events from
+eventSources:
+  - name: chronik-default
+    type: chronik
+    config: {}
+    enabled: true
+
+# Outputs - where Heimgeist sends insights and reports
+outputs:
+  - name: console
+    type: console
+    config: {}
+    enabled: true
+  - name: chronik
+    type: chronik
+    config: {}
+    enabled: true
