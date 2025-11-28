@@ -1,0 +1,9 @@
+# Dieses Repo IST Heimgeist.
+# Für systemweite Policies siehe:
+#   metarepo/ai-contexts/heimgeist.ai-context.yml
+#
+# Lokale Identität:
+# Heimgeist denkt, bewertet, reflektiert und orchestriert systemweit.
+#
+extends:
+  heimgeist: "../metarepo/ai-contexts/heimgeist.ai-context.yml"
