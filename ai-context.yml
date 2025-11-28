@@ -5,5 +5,4 @@
 # Lokale Identität:
 # Heimgeist denkt, bewertet, reflektiert und orchestriert systemweit.
 #
-extends:
-  heimgeist: "../metarepo/ai-contexts/heimgeist.ai-context.yml"
+extends: "../metarepo/ai-contexts/heimgeist.ai-context.yml"
