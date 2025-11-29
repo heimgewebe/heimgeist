@@ -184,7 +184,7 @@ export class Heimgeist {
         (e) =>
           e.type === event.type &&
           e.source === event.source &&
-          Date.now() - new Date(e.timestamp).getTime() < 24 * 60 * 60 * 1000
+          Date.now() - e.timestamp.getTime() < 24 * 60 * 60 * 1000
       );
 
     if (recentEvents.length > 3) {
@@ -449,6 +449,9 @@ export class Heimgeist {
     const highInsights = Array.from(this.insights.values()).filter(
       (i) => i.severity === RiskSeverity.High
     );
+    const mediumInsights = Array.from(this.insights.values()).filter(
+      (i) => i.severity === RiskSeverity.Medium
+    );
     const pendingActions = Array.from(this.plannedActions.values()).filter(
       (a) => a.status === 'pending'
     );
@@ -465,10 +468,16 @@ export class Heimgeist {
       level = RiskSeverity.High;
       reasons.push(`${highInsights.length} high-severity issues detected`);
       recommendations.push('Review and address high-severity issues');
-    } else if (pendingActions.length > 0) {
+    } else if (mediumInsights.length > 0 || pendingActions.length > 0) {
       level = RiskSeverity.Medium;
-      reasons.push(`${pendingActions.length} pending actions require attention`);
-      recommendations.push('Review and approve/reject pending actions');
+      if (mediumInsights.length > 0) {
+        reasons.push(`${mediumInsights.length} medium-severity issues detected`);
+        recommendations.push('Review and address medium-severity issues');
+      }
+      if (pendingActions.length > 0) {
+        reasons.push(`${pendingActions.length} pending actions require attention`);
+        recommendations.push('Review and approve/reject pending actions');
+      }
     } else {
       level = RiskSeverity.Low;
       reasons.push('No significant issues detected');

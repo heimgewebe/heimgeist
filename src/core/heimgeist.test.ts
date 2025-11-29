@@ -158,6 +158,22 @@ describe('Heimgeist', () => {
 
       expect(assessment.level).toBe(RiskSeverity.Critical);
     });
+
+    it('should return medium risk after medium-severity event', async () => {
+      const event: ChronikEvent = {
+        id: 'test-event-medium',
+        type: EventType.CIResult,
+        timestamp: new Date(),
+        source: 'ci-build',
+        payload: { status: 'failed' },
+      };
+
+      await heimgeist.processEvent(event);
+      const assessment = heimgeist.getRiskAssessment();
+
+      expect(assessment.level).toBe(RiskSeverity.Medium);
+      expect(assessment.reasons.some((r) => r.includes('medium-severity'))).toBe(true);
+    });
   });
 
   describe('analysis', () => {
