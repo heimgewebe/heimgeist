@@ -472,12 +472,10 @@ export class Heimgeist {
       level = RiskSeverity.Medium;
       if (mediumInsights.length > 0) {
         reasons.push(`${mediumInsights.length} medium-severity issues detected`);
+        recommendations.push('Review and address medium-severity issues');
       }
       if (pendingActions.length > 0) {
         reasons.push(`${pendingActions.length} pending actions require attention`);
-      }
-      recommendations.push('Review and address medium-severity issues');
-      if (pendingActions.length > 0) {
         recommendations.push('Review and approve/reject pending actions');
       }
     } else {
