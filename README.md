@@ -242,10 +242,14 @@ You can trigger Heimgeist and other tools via PR comments:
 ```markdown
 @heimgewebe/sichter /quick           # Quick risk analysis
 @heimgewebe/sichter /deep            # Deep analysis with patterns
-@heimgewebe/wgx /guard auth          # Run guard checks
+@heimgewebe/wgx /guard changed       # Run guard checks for changed files
 @heimgewebe/heimlern /pattern-bad    # Mark as anti-pattern
 @heimgewebe/metarepo /link-epic EPIC-123  # Link to epic
 ```
+
+For a complete overview of the command syntax across all tools, see:
+
+- [docs/command-language.md](docs/command-language.md)
 
 See [Pipeline Usage Guide](docs/pipeline-usage.md) for practical examples.
 

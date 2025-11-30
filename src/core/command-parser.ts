@@ -6,7 +6,7 @@ import { HeimgewebeCommand } from '../types';
  *
  * Supported formats:
  * - @heimgewebe/sichter /quick
- * - @heimgewebe/wgx /guard auth
+ * - @heimgewebe/wgx /guard changed
  * - @heimgewebe/heimlern /pattern-bad sql-injection
  * - @heimgewebe/metarepo /link-epic EPIC-123
  */

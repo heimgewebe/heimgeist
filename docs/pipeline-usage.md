@@ -18,9 +18,15 @@
 
 # ✅ Neu: Strukturiert
 @heimgewebe/sichter /quick
-@heimgewebe/wgx /guard auth
+@heimgewebe/wgx /guard changed
 @heimgewebe/heimlern /pattern-bad sql-injection
 ```
+
+The example above already uses the Heimgewebe command language that Heimgeist understands.
+
+For a full reference of supported tools, commands and arguments, see:
+
+- [`docs/command-language.md`](./command-language.md)
 
 **Technisch**:
 1. Dispatcher erkennt `@heimgewebe/` mentions
