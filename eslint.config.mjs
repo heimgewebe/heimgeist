@@ -60,6 +60,7 @@ export default [
         beforeEach: 'readonly',
         afterEach: 'readonly',
         jest: 'readonly',
+        setTimeout: 'readonly',
       },
     },
     plugins: {
