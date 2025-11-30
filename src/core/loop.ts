@@ -12,6 +12,23 @@ import {
   AutonomyLevel,
 } from '../types';
 
+// Type definitions for event payloads and context
+interface EventContext {
+  history?: unknown[];
+  repo?: string;
+  branch?: string;
+  [key: string]: unknown;
+}
+
+interface CIResultPayload {
+  pipeline_id?: string;
+  repo?: string;
+  branch?: string;
+  status?: string;
+  trigger?: string;
+  [key: string]: unknown;
+}
+
 // Constants for file paths
 const STATE_DIR = 'heimgeist_state';
 const INSIGHTS_DIR = path.join(STATE_DIR, 'insights');
@@ -137,15 +154,15 @@ export class HeimgeistCoreLoop {
     }
   }
 
-  private async buildContext(_event: ChronikEvent): Promise<any> {
+  private async buildContext(_event: ChronikEvent): Promise<EventContext> {
     // Placeholder for fetching context from semantAH or history
     return {
         // e.g. history of this repo/branch
     };
   }
 
-  private assessRisk(event: ChronikEvent, _context: any): { level: RiskSeverity; reasons: string[] } {
-    const payload = event.payload as any;
+  private assessRisk(event: ChronikEvent, _context: EventContext): { level: RiskSeverity; reasons: string[] } {
+    const payload = event.payload as CIResultPayload;
 
     // Heuristic: CI Failure on main
     if (event.type === EventType.CIResult && payload.status === 'failed' && payload.branch === 'main') {
@@ -171,7 +188,7 @@ export class HeimgeistCoreLoop {
 
   private deriveInsights(
     event: ChronikEvent,
-    context: any,
+    context: EventContext,
     risk: { level: RiskSeverity; reasons: string[] }
   ): Insight[] {
     const insights: Insight[] = [];
@@ -195,12 +212,12 @@ export class HeimgeistCoreLoop {
 
   private proposeActions(
     event: ChronikEvent,
-    context: any,
+    context: EventContext,
     risk: { level: RiskSeverity; reasons: string[] },
     insights: Insight[]
   ): PlannedAction[] {
     const actions: PlannedAction[] = [];
-    const payload = event.payload as any;
+    const payload = event.payload as CIResultPayload;
 
     for (const insight of insights) {
       if (insight.severity === RiskSeverity.Critical) {
