@@ -275,8 +275,8 @@ export class Heimgeist {
         type: 'pattern',
         severity: RiskSeverity.Medium,
         title: 'Repetitive Event Pattern Detected',
-        description: `Interesting... ${recentEvents.length} similar events from ${event.source} in the last 24 hours. This smells like systemic trouble.`,
-        context: { eventCount: recentEvents.length, eventType: event.type },
+        description: `Interesting... ${recentEvents.length + 1} similar events from ${event.source} in the last 24 hours. This smells like systemic trouble.`,
+        context: { eventCount: recentEvents.length + 1, eventType: event.type },
         recommendations: [
           'Investigate root cause of repetitive failures',
           'Consider adding monitoring or alerts',
