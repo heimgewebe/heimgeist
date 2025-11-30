@@ -1,11 +1,20 @@
 import { Heimgeist, createHeimgeist } from './heimgeist';
 import { AutonomyLevel, HeimgeistRole, RiskSeverity, EventType, ChronikEvent } from '../types';
+import { Logger } from './logger';
+
+class MockLogger implements Logger {
+  log = jest.fn();
+  warn = jest.fn();
+  error = jest.fn();
+}
 
 describe('Heimgeist', () => {
   let heimgeist: Heimgeist;
+  let mockLogger: MockLogger;
 
   beforeEach(() => {
-    heimgeist = createHeimgeist();
+    mockLogger = new MockLogger();
+    heimgeist = createHeimgeist(undefined, mockLogger);
   });
 
   describe('status', () => {
@@ -112,6 +121,20 @@ describe('Heimgeist', () => {
 
       const status = heimgeist.getStatus();
       expect(status.eventsProcessed).toBe(2);
+    });
+
+    it('should log to console output', async () => {
+      const event: ChronikEvent = {
+        id: 'test-event-log',
+        type: EventType.CIResult,
+        timestamp: new Date(),
+        source: 'ci',
+        payload: { status: 'failed' },
+      };
+
+      await heimgeist.processEvent(event);
+
+      expect(mockLogger.log).toHaveBeenCalled();
     });
   });
 

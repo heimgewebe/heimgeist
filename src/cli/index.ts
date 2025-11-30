@@ -6,6 +6,7 @@ import { getAutonomyLevelName } from '../config';
 import { startServer } from '../api';
 import { RiskSeverity, EventType, ChronikEvent } from '../types';
 import { v4 as uuidv4 } from 'uuid';
+import { defaultLogger } from '../core/logger';
 
 const program = new Command();
 
@@ -14,7 +15,7 @@ let heimgeist: Heimgeist;
 
 function getHeimgeist(): Heimgeist {
   if (!heimgeist) {
-    heimgeist = createHeimgeist();
+    heimgeist = createHeimgeist(undefined, defaultLogger);
   }
   return heimgeist;
 }

@@ -253,6 +253,8 @@ export function createApp(heimgeist?: Heimgeist): express.Application {
 
   // Error handling middleware
   const errorHandler = (err: Error, _req: Request, res: Response, _next: NextFunction): void => {
+    // console.error is used here as it's the server error handler, but we could pass a logger if we wanted.
+    // Keeping console.error for now or could be upgraded to use the instance's logger if exposed.
     console.error('[Heimgeist] Error:', err.message);
     // In production, don't expose internal error details
     const isDevelopment = process.env.NODE_ENV !== 'production';
