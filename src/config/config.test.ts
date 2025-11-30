@@ -1,11 +1,5 @@
 import * as fs from 'fs';
-import * as path from 'path';
-import {
-  loadConfig,
-  getDefaultConfig,
-  validateConfig,
-  getAutonomyLevelName,
-} from './index';
+import { loadConfig, getDefaultConfig, validateConfig, getAutonomyLevelName } from './index';
 import { AutonomyLevel, HeimgeistRole } from '../types';
 
 // Mock fs module

@@ -1,6 +1,6 @@
 /**
  * Heimgeist Autonomy Levels
- * 
+ *
  * Level 0 - Passive: Reacts only to direct requests
  * Level 1 - Observing: Notes issues, only pings when explicitly asked
  * Level 2 - Warning (Default): Proactively analyzes, writes hints/suggestions,
@@ -19,9 +19,9 @@ export enum AutonomyLevel {
  * Heimgeist's core roles
  */
 export enum HeimgeistRole {
-  Observer = 'observer',   // Reads chronik events, context from semantAH
-  Critic = 'critic',       // Detects drift, errors, risky patterns, policy violations
-  Director = 'director',   // Plans tool chains, decides when to act
+  Observer = 'observer', // Reads chronik events, context from semantAH
+  Critic = 'critic', // Detects drift, errors, risky patterns, policy violations
+  Director = 'director', // Plans tool chains, decides when to act
   Archivist = 'archivist', // Writes insights to chronik, semantAH, heimlern
 }
 

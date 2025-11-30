@@ -1,6 +1,6 @@
 import request from 'supertest';
 import express from 'express';
-import { createApp, createApiRouter } from './server';
+import { createApp } from './server';
 import { Heimgeist } from '../core';
 import { EventType, AutonomyLevel, HeimgeistRole } from '../types';
 
@@ -11,7 +11,12 @@ describe('Heimgeist API Server', () => {
   beforeEach(() => {
     heimgeist = new Heimgeist({
       autonomyLevel: AutonomyLevel.Warning,
-      activeRoles: [HeimgeistRole.Observer, HeimgeistRole.Critic, HeimgeistRole.Director, HeimgeistRole.Archivist],
+      activeRoles: [
+        HeimgeistRole.Observer,
+        HeimgeistRole.Critic,
+        HeimgeistRole.Director,
+        HeimgeistRole.Archivist,
+      ],
       policies: [],
       eventSources: [],
       outputs: [],
@@ -52,9 +57,7 @@ describe('Heimgeist API Server', () => {
 
   describe('POST /heimgeist/analyse', () => {
     it('should run an analysis', async () => {
-      const response = await request(app)
-        .post('/heimgeist/analyse')
-        .send({ depth: 'quick' });
+      const response = await request(app).post('/heimgeist/analyse').send({ depth: 'quick' });
 
       expect(response.status).toBe(200);
       expect(response.body.id).toBeDefined();
@@ -63,18 +66,14 @@ describe('Heimgeist API Server', () => {
     });
 
     it('should accept analyze spelling', async () => {
-      const response = await request(app)
-        .post('/heimgeist/analyze')
-        .send({ depth: 'deep' });
+      const response = await request(app).post('/heimgeist/analyze').send({ depth: 'deep' });
 
       expect(response.status).toBe(200);
       expect(response.body.id).toBeDefined();
     });
 
     it('should use default depth if not provided', async () => {
-      const response = await request(app)
-        .post('/heimgeist/analyse')
-        .send({});
+      const response = await request(app).post('/heimgeist/analyse').send({});
 
       expect(response.status).toBe(200);
       expect(response.body.id).toBeDefined();
@@ -141,30 +140,24 @@ describe('Heimgeist API Server', () => {
     });
 
     it('should generate event ID if not provided', async () => {
-      const response = await request(app)
-        .post('/heimgeist/events')
-        .send({
-          type: EventType.PROpened,
-          payload: {},
-        });
+      const response = await request(app).post('/heimgeist/events').send({
+        type: EventType.PROpened,
+        payload: {},
+      });
 
       expect(response.status).toBe(200);
       expect(response.body.eventId).toBeDefined();
     });
 
     it('should use default values for missing fields', async () => {
-      const response = await request(app)
-        .post('/heimgeist/events')
-        .send({});
+      const response = await request(app).post('/heimgeist/events').send({});
 
       expect(response.status).toBe(200);
       expect(response.body.eventId).toBeDefined();
     });
 
     it('should reject invalid request body', async () => {
-      const response = await request(app)
-        .post('/heimgeist/events')
-        .send('invalid');
+      const response = await request(app).post('/heimgeist/events').send('invalid');
 
       expect(response.status).toBe(400);
       expect(response.body.error).toBeDefined();
@@ -214,9 +207,7 @@ describe('Heimgeist API Server', () => {
 
   describe('PATCH /heimgeist/config/autonomy', () => {
     it('should update autonomy level', async () => {
-      const response = await request(app)
-        .patch('/heimgeist/config/autonomy')
-        .send({ level: 3 });
+      const response = await request(app).patch('/heimgeist/config/autonomy').send({ level: 3 });
 
       expect(response.status).toBe(200);
       expect(response.body.success).toBe(true);
@@ -224,9 +215,7 @@ describe('Heimgeist API Server', () => {
     });
 
     it('should reject invalid autonomy level', async () => {
-      const response = await request(app)
-        .patch('/heimgeist/config/autonomy')
-        .send({ level: 5 });
+      const response = await request(app).patch('/heimgeist/config/autonomy').send({ level: 5 });
 
       expect(response.status).toBe(400);
       expect(response.body.error).toBeDefined();
@@ -255,8 +244,7 @@ describe('Heimgeist API Server', () => {
 
       const actions = heimgeist.getPlannedActions();
       if (actions.length > 0) {
-        const response = await request(app)
-          .post(`/heimgeist/actions/${actions[0].id}/approve`);
+        const response = await request(app).post(`/heimgeist/actions/${actions[0].id}/approve`);
 
         expect(response.status).toBe(200);
         expect(response.body.success).toBe(true);
@@ -264,8 +252,7 @@ describe('Heimgeist API Server', () => {
     });
 
     it('should return 404 for non-existent action', async () => {
-      const response = await request(app)
-        .post('/heimgeist/actions/non-existent-id/approve');
+      const response = await request(app).post('/heimgeist/actions/non-existent-id/approve');
 
       expect(response.status).toBe(404);
       expect(response.body.error).toBeDefined();
@@ -285,8 +272,7 @@ describe('Heimgeist API Server', () => {
 
       const actions = heimgeist.getPlannedActions();
       if (actions.length > 0) {
-        const response = await request(app)
-          .post(`/heimgeist/actions/${actions[0].id}/reject`);
+        const response = await request(app).post(`/heimgeist/actions/${actions[0].id}/reject`);
 
         expect(response.status).toBe(200);
         expect(response.body.success).toBe(true);
@@ -294,8 +280,7 @@ describe('Heimgeist API Server', () => {
     });
 
     it('should return 404 for non-existent action', async () => {
-      const response = await request(app)
-        .post('/heimgeist/actions/non-existent-id/reject');
+      const response = await request(app).post('/heimgeist/actions/non-existent-id/reject');
 
       expect(response.status).toBe(404);
       expect(response.body.error).toBeDefined();
@@ -312,12 +297,14 @@ describe('Heimgeist API Server', () => {
 
       const testApp = express();
       testApp.use(router);
-      testApp.use((err: Error, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
-        res.status(500).json({
-          error: 'Internal server error',
-          message: err.message,
-        });
-      });
+      testApp.use(
+        (err: Error, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
+          res.status(500).json({
+            error: 'Internal server error',
+            message: err.message,
+          });
+        }
+      );
 
       const response = await request(testApp).get('/fail');
       expect(response.status).toBe(500);

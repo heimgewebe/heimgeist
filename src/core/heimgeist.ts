@@ -17,7 +17,7 @@ import { loadConfig, getAutonomyLevelName } from '../config';
 
 /**
  * Heimgeist - The System Self-Reflection Engine
- * 
+ *
  * Character: dry, slightly ironic, analytical
  * Focus: code, repos, CI, processes, knowledge
  * Attitude: skeptical of "it works", loves contradictions and drift
@@ -86,10 +86,7 @@ export class Heimgeist {
       this.config.autonomyLevel >= AutonomyLevel.Warning
     ) {
       for (const insight of newInsights) {
-        if (
-          insight.severity === RiskSeverity.High ||
-          insight.severity === RiskSeverity.Critical
-        ) {
+        if (insight.severity === RiskSeverity.High || insight.severity === RiskSeverity.Critical) {
           const action = this.planAction(insight);
           if (action) {
             this.plannedActions.set(action.id, action);
@@ -179,14 +176,13 @@ export class Heimgeist {
     const insights: Insight[] = [];
 
     // Look for repetition patterns (excluding the current event)
-    const recentEvents = Array.from(this.events.values())
-      .filter(
-        (e) =>
-          e.id !== event.id &&
-          e.type === event.type &&
-          e.source === event.source &&
-          Date.now() - e.timestamp.getTime() < 24 * 60 * 60 * 1000
-      );
+    const recentEvents = Array.from(this.events.values()).filter(
+      (e) =>
+        e.id !== event.id &&
+        e.type === event.type &&
+        e.source === event.source &&
+        Date.now() - e.timestamp.getTime() < 24 * 60 * 60 * 1000
+    );
 
     if (recentEvents.length >= 3) {
       insights.push({
@@ -235,8 +231,7 @@ export class Heimgeist {
    * Director role: Plan action chains based on insights
    */
   private planAction(insight: Insight): PlannedAction | null {
-    const requiresConfirmation =
-      this.config.autonomyLevel < AutonomyLevel.Operative;
+    const requiresConfirmation = this.config.autonomyLevel < AutonomyLevel.Operative;
 
     // Plan actions based on insight type
     if (insight.type === 'risk' && insight.severity === RiskSeverity.Critical) {
@@ -355,12 +350,8 @@ export class Heimgeist {
    * Generate a summary in Heimgeist's characteristic style
    */
   private generateSummary(insights: Insight[], actions: PlannedAction[]): string {
-    const criticalCount = insights.filter(
-      (i) => i.severity === RiskSeverity.Critical
-    ).length;
-    const highCount = insights.filter(
-      (i) => i.severity === RiskSeverity.High
-    ).length;
+    const criticalCount = insights.filter((i) => i.severity === RiskSeverity.Critical).length;
+    const highCount = insights.filter((i) => i.severity === RiskSeverity.High).length;
 
     if (criticalCount > 0) {
       return `Well, this is concerning. ${criticalCount} critical issues demand immediate attention. The system is not as stable as you might think.`;
@@ -524,9 +515,7 @@ export class Heimgeist {
    */
   setAutonomyLevel(level: AutonomyLevel): void {
     this.config.autonomyLevel = level;
-    console.log(
-      `[Heimgeist] Autonomy level changed to ${getAutonomyLevelName(level)} (${level})`
-    );
+    console.log(`[Heimgeist] Autonomy level changed to ${getAutonomyLevelName(level)} (${level})`);
   }
 
   /**

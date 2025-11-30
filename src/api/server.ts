@@ -1,11 +1,6 @@
 import express, { Request, Response, Router, NextFunction, RequestHandler } from 'express';
 import { Heimgeist, createHeimgeist } from '../core';
-import {
-  AnalysisRequest,
-  ExplainRequest,
-  ChronikEvent,
-  EventType,
-} from '../types';
+import { AnalysisRequest, ExplainRequest, ChronikEvent, EventType } from '../types';
 import { v4 as uuidv4 } from 'uuid';
 
 /**
@@ -22,7 +17,11 @@ export function createApiRouter(heimgeist?: Heimgeist): Router {
    * POST /heimgeist/analyse
    * Run an analysis based on the provided request
    */
-  const analyseHandler: RequestHandler = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  const analyseHandler: RequestHandler = async (
+    req: Request,
+    res: Response,
+    next: NextFunction
+  ): Promise<void> => {
     try {
       const request: AnalysisRequest = {
         target: req.body.target,
@@ -144,7 +143,11 @@ export function createApiRouter(heimgeist?: Heimgeist): Router {
    * POST /heimgeist/events
    * Submit an event for processing
    */
-  const eventsHandler: RequestHandler = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  const eventsHandler: RequestHandler = async (
+    req: Request,
+    res: Response,
+    next: NextFunction
+  ): Promise<void> => {
     try {
       // Validate request body
       if (!req.body || typeof req.body !== 'object') {
@@ -249,12 +252,7 @@ export function createApp(heimgeist?: Heimgeist): express.Application {
   app.get('/', rootHandler);
 
   // Error handling middleware
-  const errorHandler = (
-    err: Error,
-    _req: Request,
-    res: Response,
-    _next: NextFunction
-  ): void => {
+  const errorHandler = (err: Error, _req: Request, res: Response, _next: NextFunction): void => {
     console.error('[Heimgeist] Error:', err.message);
     // In production, don't expose internal error details
     const isDevelopment = process.env.NODE_ENV !== 'production';

@@ -1,11 +1,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import * as yaml from 'yaml';
-import {
-  HeimgeistConfig,
-  AutonomyLevel,
-  HeimgeistRole,
-} from '../types';
+import { HeimgeistConfig, AutonomyLevel, HeimgeistRole } from '../types';
 
 /**
  * Default configuration for Heimgeist
@@ -21,7 +17,8 @@ const DEFAULT_CONFIG: HeimgeistConfig = {
   policies: [
     {
       name: 'default-warning',
-      description: 'Default policy for warning level - can analyze but needs confirmation for actions',
+      description:
+        'Default policy for warning level - can analyze but needs confirmation for actions',
       minAutonomyLevel: AutonomyLevel.Warning,
       allowedActions: ['analyze', 'report', 'suggest'],
     },
@@ -70,9 +67,7 @@ const CONFIG_PATHS = [
  * Load Heimgeist configuration from file or use defaults
  */
 export function loadConfig(basePath?: string): HeimgeistConfig {
-  const searchPaths = CONFIG_PATHS.map((p) =>
-    path.resolve(basePath || process.cwd(), p)
-  );
+  const searchPaths = CONFIG_PATHS.map((p) => path.resolve(basePath || process.cwd(), p));
 
   for (const configPath of searchPaths) {
     if (fs.existsSync(configPath)) {
@@ -98,13 +93,8 @@ function mergeConfig(
 ): HeimgeistConfig {
   return {
     autonomyLevel:
-      override.autonomyLevel !== undefined
-        ? override.autonomyLevel
-        : defaults.autonomyLevel,
-    activeRoles:
-      override.activeRoles !== undefined
-        ? override.activeRoles
-        : defaults.activeRoles,
+      override.autonomyLevel !== undefined ? override.autonomyLevel : defaults.autonomyLevel,
+    activeRoles: override.activeRoles !== undefined ? override.activeRoles : defaults.activeRoles,
     // Merge policies: add custom policies to default ones
     policies:
       override.policies !== undefined
@@ -112,12 +102,9 @@ function mergeConfig(
         : defaults.policies,
     // Replace event sources completely if provided (don't merge with defaults)
     eventSources:
-      override.eventSources !== undefined
-        ? override.eventSources
-        : defaults.eventSources,
+      override.eventSources !== undefined ? override.eventSources : defaults.eventSources,
     // Replace outputs completely if provided (don't merge with defaults)
-    outputs:
-      override.outputs !== undefined ? override.outputs : defaults.outputs,
+    outputs: override.outputs !== undefined ? override.outputs : defaults.outputs,
   };
 }
 
@@ -144,9 +131,7 @@ export function validateConfig(config: HeimgeistConfig): string[] {
     config.autonomyLevel < AutonomyLevel.Passive ||
     config.autonomyLevel > AutonomyLevel.Operative
   ) {
-    errors.push(
-      `Invalid autonomy level: ${config.autonomyLevel}. Must be between 0 and 3.`
-    );
+    errors.push(`Invalid autonomy level: ${config.autonomyLevel}. Must be between 0 and 3.`);
   }
 
   if (!config.activeRoles || config.activeRoles.length === 0) {

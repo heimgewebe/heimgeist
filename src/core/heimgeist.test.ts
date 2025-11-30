@@ -1,11 +1,5 @@
 import { Heimgeist, createHeimgeist } from './heimgeist';
-import {
-  AutonomyLevel,
-  HeimgeistRole,
-  RiskSeverity,
-  EventType,
-  ChronikEvent,
-} from '../types';
+import { AutonomyLevel, HeimgeistRole, RiskSeverity, EventType, ChronikEvent } from '../types';
 
 describe('Heimgeist', () => {
   let heimgeist: Heimgeist;
@@ -257,9 +251,7 @@ describe('Heimgeist', () => {
       const success = heimgeist.approveAction(actionId);
 
       expect(success).toBe(true);
-      expect(heimgeist.getPlannedActions().find((a) => a.id === actionId)?.status).toBe(
-        'approved'
-      );
+      expect(heimgeist.getPlannedActions().find((a) => a.id === actionId)?.status).toBe('approved');
     });
 
     it('should reject pending actions', async () => {
@@ -278,9 +270,7 @@ describe('Heimgeist', () => {
       const success = heimgeist.rejectAction(actionId);
 
       expect(success).toBe(true);
-      expect(heimgeist.getPlannedActions().find((a) => a.id === actionId)?.status).toBe(
-        'rejected'
-      );
+      expect(heimgeist.getPlannedActions().find((a) => a.id === actionId)?.status).toBe('rejected');
     });
 
     it('should not plan actions at lower autonomy levels', async () => {
