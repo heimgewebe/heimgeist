@@ -113,7 +113,7 @@ export class Heimgeist {
     const insights: Insight[] = [];
 
     // Check for CI failures
-    if (event.type === 'ci.result' && event.payload.status === 'failed') {
+    if (event.type === 'ci.result' && event.payload?.status === 'failed') {
       insights.push({
         id: uuidv4(),
         timestamp: new Date(),
@@ -178,16 +178,17 @@ export class Heimgeist {
   private critique(event: ChronikEvent, existingInsights: Insight[]): Insight[] {
     const insights: Insight[] = [];
 
-    // Look for repetition patterns
+    // Look for repetition patterns (excluding the current event)
     const recentEvents = Array.from(this.events.values())
       .filter(
         (e) =>
+          e.id !== event.id &&
           e.type === event.type &&
           e.source === event.source &&
           Date.now() - e.timestamp.getTime() < 24 * 60 * 60 * 1000
       );
 
-    if (recentEvents.length > 3) {
+    if (recentEvents.length >= 3) {
       insights.push({
         id: uuidv4(),
         timestamp: new Date(),

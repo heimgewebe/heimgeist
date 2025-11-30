@@ -105,14 +105,17 @@ function mergeConfig(
       override.activeRoles !== undefined
         ? override.activeRoles
         : defaults.activeRoles,
+    // Merge policies: add custom policies to default ones
     policies:
       override.policies !== undefined
         ? [...defaults.policies, ...override.policies]
         : defaults.policies,
+    // Replace event sources completely if provided (don't merge with defaults)
     eventSources:
       override.eventSources !== undefined
         ? override.eventSources
         : defaults.eventSources,
+    // Replace outputs completely if provided (don't merge with defaults)
     outputs:
       override.outputs !== undefined ? override.outputs : defaults.outputs,
   };
