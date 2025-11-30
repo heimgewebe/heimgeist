@@ -2,9 +2,9 @@
 
 import { Command } from 'commander';
 import { createHeimgeist, Heimgeist } from '../core';
-import { loadConfig, getAutonomyLevelName } from '../config';
+import { getAutonomyLevelName } from '../config';
 import { startServer } from '../api';
-import { AutonomyLevel, RiskSeverity, EventType, ChronikEvent } from '../types';
+import { RiskSeverity, EventType, ChronikEvent } from '../types';
 import { v4 as uuidv4 } from 'uuid';
 
 const program = new Command();
@@ -19,10 +19,7 @@ function getHeimgeist(): Heimgeist {
   return heimgeist;
 }
 
-program
-  .name('heimgeist')
-  .description('Heimgeist - System Self-Reflection Engine')
-  .version('1.0.0');
+program.name('heimgeist').description('Heimgeist - System Self-Reflection Engine').version('1.0.0');
 
 /**
  * Status command
@@ -36,7 +33,9 @@ program
 
     console.log('\n=== Heimgeist Status ===\n');
     console.log(`Version:         ${status.version}`);
-    console.log(`Autonomy Level:  ${getAutonomyLevelName(status.autonomyLevel)} (${status.autonomyLevel})`);
+    console.log(
+      `Autonomy Level:  ${getAutonomyLevelName(status.autonomyLevel)} (${status.autonomyLevel})`
+    );
     console.log(`Active Roles:    ${status.activeRoles.join(', ')}`);
     console.log(`Uptime:          ${Math.round(status.uptime / 1000)}s`);
     console.log(`Events Processed: ${status.eventsProcessed}`);
@@ -77,9 +76,11 @@ program
     if (assessment.level === RiskSeverity.Critical) {
       console.log('💀 This is not fine. Address immediately.\n');
     } else if (assessment.level === RiskSeverity.High) {
-      console.log('⚠️  High risk detected. You might want to look into this before it gets worse.\n');
+      console.log(
+        '⚠️  High risk detected. You might want to look into this before it gets worse.\n'
+      );
     } else if (assessment.level === RiskSeverity.Medium) {
-      console.log('🔔 Some issues detected. Nothing critical, but don\'t let them pile up.\n');
+      console.log("🔔 Some issues detected. Nothing critical, but don't let them pile up.\n");
     } else {
       console.log('✓ All quiet. For now.\n');
     }
@@ -116,9 +117,8 @@ program
     }
 
     // Try to explain the specific ID
-    const explanation = hg.explain({ insightId: id }) ||
-                       hg.explain({ actionId: id }) ||
-                       hg.explain({ eventId: id });
+    const explanation =
+      hg.explain({ insightId: id }) || hg.explain({ actionId: id }) || hg.explain({ eventId: id });
 
     if (!explanation) {
       console.log(`\nCould not find anything with ID: ${id}\n`);
@@ -324,7 +324,9 @@ program
     const config = hg.getConfig();
 
     console.log('\n=== Heimgeist Configuration ===\n');
-    console.log(`Autonomy Level: ${getAutonomyLevelName(config.autonomyLevel)} (${config.autonomyLevel})`);
+    console.log(
+      `Autonomy Level: ${getAutonomyLevelName(config.autonomyLevel)} (${config.autonomyLevel})`
+    );
     console.log('\nAutonomy Levels:');
     console.log('  0 - Passive:   Reacts only to direct requests');
     console.log('  1 - Observing: Notes issues, only pings when asked');
