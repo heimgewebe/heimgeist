@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 import { Command } from 'commander';
-import { createHeimgeist, Heimgeist } from '../core';
+import { createHeimgeist, Heimgeist, HeimgeistCoreLoop, MockChronikClient } from '../core';
 import { getAutonomyLevelName } from '../config';
 import { startServer } from '../api';
 import { RiskSeverity, EventType, ChronikEvent } from '../types';
@@ -386,6 +386,46 @@ program
         console.log(`  ${insight.description}\n`);
       });
     }
+  });
+
+/**
+ * Loop command
+ */
+program
+  .command('loop')
+  .description('Start the Heimgeist Core Loop')
+  .option('--inject-failure', 'Inject a CI failure on main to test the loop')
+  .action(async (options) => {
+    console.log('\nStarting Heimgeist Core Loop...\n');
+
+    const chronik = new MockChronikClient();
+    const loop = new HeimgeistCoreLoop(chronik, 2); // Autonomy Level 2 (Warning)
+
+    if (options.injectFailure) {
+      console.log('Injecting simulated CI failure on main...');
+      chronik.addEvent({
+        id: uuidv4(),
+        type: EventType.CIResult,
+        timestamp: new Date(),
+        source: 'github',
+        payload: {
+          pipeline_id: '12345',
+          repo: 'heimgewebe/core',
+          branch: 'main',
+          status: 'failed',
+          trigger: 'push',
+        },
+      });
+    }
+
+    // Handle signals to stop gracefully
+    process.on('SIGINT', () => {
+      console.log('\nReceived SIGINT. Stopping loop...');
+      loop.stop();
+      process.exit(0);
+    });
+
+    await loop.start();
   });
 
 // Parse arguments

@@ -31,3 +31,4 @@ yarn-error.log*
 # Temp files
 *.tmp
 *.temp
+heimgeist_state/
