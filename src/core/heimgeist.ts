@@ -17,6 +17,7 @@ import {
   Pattern,
 } from '../types';
 import { loadConfig, getAutonomyLevelName } from '../config';
+import { Logger, defaultLogger } from './logger';
 
 /**
  * Heimgeist - The System Self-Reflection Engine
@@ -37,9 +38,11 @@ export class Heimgeist {
   private eventsProcessed = 0;
   private actionsExecuted = 0;
   private lastActivity?: Date;
+  private logger: Logger;
 
-  constructor(config?: HeimgeistConfig) {
+  constructor(config?: HeimgeistConfig, logger: Logger = defaultLogger) {
     this.config = config || loadConfig();
+    this.logger = logger;
     this.startTime = new Date();
   }
 
@@ -174,7 +177,9 @@ export class Heimgeist {
         type: 'risk',
         severity: RiskSeverity.Critical,
         title: 'Incident Detected',
-        description: `An incident has been detected: ${event.payload.description || 'Unknown incident'}`,
+        description: `An incident has been detected: ${
+          (event.payload.description as string) || 'Unknown incident'
+        }`,
         source: event,
         recommendations: [
           'Initiate incident response protocol',
@@ -358,10 +363,10 @@ export class Heimgeist {
       switch (output.type) {
         case 'console':
           for (const insight of insights) {
-            console.log(
+            this.logger.log(
               `[Heimgeist/${insight.role}] ${insight.severity.toUpperCase()}: ${insight.title}`
             );
-            console.log(`  ${insight.description}`);
+            this.logger.log(`  ${insight.description}`);
           }
           break;
         case 'chronik':
@@ -405,7 +410,8 @@ export class Heimgeist {
     };
 
     resultInsights.push(summaryInsight);
-    this.insights.set(summaryInsight.id, summaryInsight);
+    // Note: We don't add summary insights to the global map to avoid pollution
+    // this.insights.set(summaryInsight.id, summaryInsight);
 
     // Include relevant planned actions
     for (const action of this.plannedActions.values()) {
@@ -593,7 +599,9 @@ export class Heimgeist {
    */
   setAutonomyLevel(level: AutonomyLevel): void {
     this.config.autonomyLevel = level;
-    console.log(`[Heimgeist] Autonomy level changed to ${getAutonomyLevelName(level)} (${level})`);
+    this.logger.log(
+      `[Heimgeist] Autonomy level changed to ${getAutonomyLevelName(level)} (${level})`
+    );
   }
 
   /**
@@ -656,6 +664,6 @@ export class Heimgeist {
 /**
  * Create a new Heimgeist instance with default configuration
  */
-export function createHeimgeist(config?: HeimgeistConfig): Heimgeist {
-  return new Heimgeist(config);
+export function createHeimgeist(config?: HeimgeistConfig, logger?: Logger): Heimgeist {
+  return new Heimgeist(config, logger);
 }
