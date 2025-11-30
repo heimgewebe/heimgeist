@@ -146,6 +146,15 @@ export function createApiRouter(heimgeist?: Heimgeist): Router {
    */
   const eventsHandler: RequestHandler = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
+      // Validate request body
+      if (!req.body || typeof req.body !== 'object') {
+        res.status(400).json({
+          error: 'Invalid request',
+          message: 'Request body must be a valid JSON object',
+        });
+        return;
+      }
+
       const event: ChronikEvent = {
         id: req.body.id || uuidv4(),
         type: req.body.type || EventType.Custom,
@@ -247,9 +256,11 @@ export function createApp(heimgeist?: Heimgeist): express.Application {
     _next: NextFunction
   ): void => {
     console.error('[Heimgeist] Error:', err.message);
+    // In production, don't expose internal error details
+    const isDevelopment = process.env.NODE_ENV !== 'production';
     res.status(500).json({
       error: 'Internal server error',
-      message: err.message,
+      message: isDevelopment ? err.message : 'An unexpected error occurred',
     });
   };
   app.use(errorHandler);
