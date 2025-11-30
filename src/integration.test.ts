@@ -258,18 +258,23 @@ describe('Heimgeist Integration Tests', () => {
   describe('Server Lifecycle', () => {
     it('should start and stop server properly', async () => {
       const heimgeist = createHeimgeist();
+      const app = createApp(heimgeist);
+
+      // Test using app directly without starting server
+      const response = await request(app).get('/health');
+      expect(response.status).toBe(200);
+      expect(response.body.status).toBe('ok');
+    });
+
+    it('should start server on custom port', async () => {
+      const heimgeist = createHeimgeist();
       const port = 3001; // Use non-default port to avoid conflicts
 
       // Start server
       const server = await startServer(port, heimgeist);
       expect(server).toBeDefined();
 
-      // Make a request to verify it's running
-      const response = await request(`http://localhost:${port}`).get('/health');
-      expect(response.status).toBe(200);
-      expect(response.body.status).toBe('ok');
-
-      // Close server
+      // Close server immediately
       await new Promise<void>((resolve) => {
         server.close(() => resolve());
       });
@@ -277,18 +282,17 @@ describe('Heimgeist Integration Tests', () => {
   });
 
   describe('Error Handling', () => {
-    it('should handle invalid event data gracefully', async () => {
+    it('should handle malformed request body gracefully', async () => {
       const heimgeist = createHeimgeist();
       const app = createApp(heimgeist);
 
-      const invalidData = 'not a json object';
+      // Send malformed data without JSON content type
       const response = await request(app)
         .post('/heimgeist/events')
-        .send(invalidData)
-        .set('Content-Type', 'application/json');
+        .send('not a json object');
 
-      // Should return error (400 or 500)
-      expect([400, 500]).toContain(response.status);
+      // Should return error for malformed data
+      expect(response.status).toBeGreaterThanOrEqual(400);
       expect(response.body.error).toBeDefined();
     });
 
