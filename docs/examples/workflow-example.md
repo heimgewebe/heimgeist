@@ -51,7 +51,7 @@ const sichterReport = {
 <!-- In a GitHub PR comment -->
 
 @heimgewebe/sichter /quick
-@heimgewebe/wgx /guard auth
+@heimgewebe/wgx /guard changed
 @heimgewebe/heimlern /pattern-bad sql-injection
 @heimgewebe/metarepo /link-epic EPIC-123
 ```

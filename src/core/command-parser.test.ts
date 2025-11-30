@@ -23,14 +23,14 @@ describe('CommandParser', () => {
     });
 
     it('should parse a wgx command with arguments', () => {
-      const text = '@heimgewebe/wgx /guard auth';
+      const text = '@heimgewebe/wgx /guard changed';
       const commands = CommandParser.parseComment(text, mockContext);
 
       expect(commands).toHaveLength(1);
       expect(commands[0]).toMatchObject({
         tool: 'wgx',
         command: 'guard',
-        args: ['auth'],
+        args: ['changed'],
         context: mockContext,
       });
     });
@@ -117,12 +117,12 @@ describe('CommandParser', () => {
         timestamp: new Date(),
         tool: 'wgx' as const,
         command: 'guard',
-        args: ['auth'],
+        args: ['changed'],
         context: mockContext,
       };
 
       const formatted = CommandParser.formatCommand(command);
-      expect(formatted).toBe('@heimgewebe/wgx /guard auth');
+      expect(formatted).toBe('@heimgewebe/wgx /guard changed');
     });
   });
 
