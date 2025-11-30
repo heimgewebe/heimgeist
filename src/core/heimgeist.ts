@@ -12,6 +12,9 @@ import {
   ExplainRequest,
   ExplainResponse,
   RiskSeverity,
+  Epic,
+  Incident,
+  Pattern,
 } from '../types';
 import { loadConfig, getAutonomyLevelName } from '../config';
 
@@ -27,9 +30,9 @@ export class Heimgeist {
   private insights: Map<string, Insight> = new Map();
   private plannedActions: Map<string, PlannedAction> = new Map();
   private events: Map<string, ChronikEvent> = new Map();
-  private epics: Map<string, Record<string, unknown>> = new Map();
-  private incidents: Map<string, Record<string, unknown>> = new Map();
-  private patterns: Map<string, Record<string, unknown>> = new Map();
+  private epics: Map<string, Epic> = new Map();
+  private incidents: Map<string, Incident> = new Map();
+  private patterns: Map<string, Pattern> = new Map();
   private startTime: Date;
   private eventsProcessed = 0;
   private actionsExecuted = 0;
@@ -157,8 +160,11 @@ export class Heimgeist {
         (event.payload.incident_id as string | undefined) || `incident-${uuidv4()}`;
       this.incidents.set(incidentId, {
         id: incidentId,
-        event,
+        severity: (event.payload.severity as RiskSeverity) || RiskSeverity.High,
+        description: (event.payload.description as string) || 'Unknown incident',
+        affected_services: (event.payload.affected_services as string[]) || [],
         detected_at: event.timestamp,
+        context: event.payload.context as Record<string, unknown>,
       });
 
       insights.push({
@@ -183,10 +189,12 @@ export class Heimgeist {
       const epicId = event.payload.epic_id as string;
       this.epics.set(epicId, {
         id: epicId,
-        title: event.payload.title,
-        linked_prs: event.payload.linked_prs || [],
-        phase: event.payload.phase || 'planning',
+        title: (event.payload.title as string) || 'Untitled Epic',
+        description: event.payload.description as string | undefined,
+        linked_prs: (event.payload.linked_prs as number[]) || [],
+        phase: (event.payload.phase as Epic['phase']) || 'planning',
         started_at: event.timestamp,
+        metadata: event.payload.metadata as Record<string, unknown>,
       });
 
       insights.push({
@@ -204,14 +212,18 @@ export class Heimgeist {
     // Check for Pattern events
     if (event.type === 'pattern.bad' || event.type === 'pattern.good') {
       const patternId = `pattern-${uuidv4()}`;
-      const patternType = event.type === 'pattern.good' ? 'good' : 'bad';
+      const patternType: 'good' | 'bad' = event.type === 'pattern.good' ? 'good' : 'bad';
 
       this.patterns.set(patternId, {
         id: patternId,
         type: patternType,
-        name: event.payload.pattern_name,
-        description: event.payload.description,
+        name: (event.payload.pattern_name as string) || 'Unnamed pattern',
+        description: (event.payload.description as string) || '',
+        occurrences: (event.payload.occurrences as number) || 1,
+        examples: (event.payload.examples as string[]) || [],
+        recommendation: event.payload.recommendation as string | undefined,
         created_at: event.timestamp,
+        updated_at: event.timestamp,
       });
 
       const severity = patternType === 'bad' ? RiskSeverity.Medium : RiskSeverity.Low;
@@ -601,42 +613,42 @@ export class Heimgeist {
   /**
    * Get all tracked epics
    */
-  getEpics(): Record<string, unknown>[] {
+  getEpics(): Epic[] {
     return Array.from(this.epics.values());
   }
 
   /**
    * Get a specific epic by ID
    */
-  getEpic(epicId: string): Record<string, unknown> | undefined {
+  getEpic(epicId: string): Epic | undefined {
     return this.epics.get(epicId);
   }
 
   /**
    * Get all tracked incidents
    */
-  getIncidents(): Record<string, unknown>[] {
+  getIncidents(): Incident[] {
     return Array.from(this.incidents.values());
   }
 
   /**
    * Get a specific incident by ID
    */
-  getIncident(incidentId: string): Record<string, unknown> | undefined {
+  getIncident(incidentId: string): Incident | undefined {
     return this.incidents.get(incidentId);
   }
 
   /**
    * Get all recorded patterns
    */
-  getPatterns(): Record<string, unknown>[] {
+  getPatterns(): Pattern[] {
     return Array.from(this.patterns.values());
   }
 
   /**
    * Get patterns by type
    */
-  getPatternsByType(type: 'good' | 'bad'): Record<string, unknown>[] {
+  getPatternsByType(type: 'good' | 'bad'): Pattern[] {
     return Array.from(this.patterns.values()).filter((p) => p.type === type);
   }
 }
