@@ -27,6 +27,9 @@ export class Heimgeist {
   private insights: Map<string, Insight> = new Map();
   private plannedActions: Map<string, PlannedAction> = new Map();
   private events: Map<string, ChronikEvent> = new Map();
+  private epics: Map<string, Record<string, unknown>> = new Map();
+  private incidents: Map<string, Record<string, unknown>> = new Map();
+  private patterns: Map<string, Record<string, unknown>> = new Map();
   private startTime: Date;
   private eventsProcessed = 0;
   private actionsExecuted = 0;
@@ -149,6 +152,15 @@ export class Heimgeist {
 
     // Check for incident detection
     if (event.type === 'incident.detected') {
+      // Track incident
+      const incidentId =
+        (event.payload.incident_id as string | undefined) || `incident-${uuidv4()}`;
+      this.incidents.set(incidentId, {
+        id: incidentId,
+        event,
+        detected_at: event.timestamp,
+      });
+
       insights.push({
         id: uuidv4(),
         timestamp: new Date(),
@@ -163,6 +175,60 @@ export class Heimgeist {
           'Assess impact and scope',
           'Begin documentation',
         ],
+      });
+    }
+
+    // Check for Epic events
+    if (event.type === 'epic.linked') {
+      const epicId = event.payload.epic_id as string;
+      this.epics.set(epicId, {
+        id: epicId,
+        title: event.payload.title,
+        linked_prs: event.payload.linked_prs || [],
+        phase: event.payload.phase || 'planning',
+        started_at: event.timestamp,
+      });
+
+      insights.push({
+        id: uuidv4(),
+        timestamp: new Date(),
+        role: HeimgeistRole.Observer,
+        type: 'suggestion',
+        severity: RiskSeverity.Low,
+        title: 'Epic Linked',
+        description: `Epic "${event.payload.title}" has been created and is being tracked`,
+        source: event,
+      });
+    }
+
+    // Check for Pattern events
+    if (event.type === 'pattern.bad' || event.type === 'pattern.good') {
+      const patternId = `pattern-${uuidv4()}`;
+      const patternType = event.type === 'pattern.good' ? 'good' : 'bad';
+
+      this.patterns.set(patternId, {
+        id: patternId,
+        type: patternType,
+        name: event.payload.pattern_name,
+        description: event.payload.description,
+        created_at: event.timestamp,
+      });
+
+      const severity = patternType === 'bad' ? RiskSeverity.Medium : RiskSeverity.Low;
+
+      insights.push({
+        id: uuidv4(),
+        timestamp: new Date(),
+        role: HeimgeistRole.Observer,
+        type: 'pattern',
+        severity,
+        title: `${patternType === 'bad' ? 'Anti-' : ''}Pattern Recorded`,
+        description: `Pattern "${event.payload.pattern_name}" has been marked as ${patternType}`,
+        source: event,
+        recommendations:
+          patternType === 'bad'
+            ? ['Avoid this pattern in future PRs', 'Consider adding linter rules']
+            : ['Consider reusing this pattern', 'Document as best practice'],
       });
     }
 
@@ -530,6 +596,48 @@ export class Heimgeist {
    */
   getPlannedActions(): PlannedAction[] {
     return Array.from(this.plannedActions.values());
+  }
+
+  /**
+   * Get all tracked epics
+   */
+  getEpics(): Record<string, unknown>[] {
+    return Array.from(this.epics.values());
+  }
+
+  /**
+   * Get a specific epic by ID
+   */
+  getEpic(epicId: string): Record<string, unknown> | undefined {
+    return this.epics.get(epicId);
+  }
+
+  /**
+   * Get all tracked incidents
+   */
+  getIncidents(): Record<string, unknown>[] {
+    return Array.from(this.incidents.values());
+  }
+
+  /**
+   * Get a specific incident by ID
+   */
+  getIncident(incidentId: string): Record<string, unknown> | undefined {
+    return this.incidents.get(incidentId);
+  }
+
+  /**
+   * Get all recorded patterns
+   */
+  getPatterns(): Record<string, unknown>[] {
+    return Array.from(this.patterns.values());
+  }
+
+  /**
+   * Get patterns by type
+   */
+  getPatternsByType(type: 'good' | 'bad'): Record<string, unknown>[] {
+    return Array.from(this.patterns.values()).filter((p) => p.type === type);
   }
 }
 
