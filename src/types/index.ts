@@ -43,8 +43,19 @@ export enum EventType {
   CIResult = 'ci.result',
   PROpened = 'pr.opened',
   PRMerged = 'pr.merged',
+  PRClosed = 'pr.closed',
   DeployFailed = 'deploy.failed',
+  DeploySucceeded = 'deploy.succeeded',
   IncidentDetected = 'incident.detected',
+  IncidentResolved = 'incident.resolved',
+  EpicLinked = 'epic.linked',
+  EpicCompleted = 'epic.completed',
+  PatternGood = 'pattern.good',
+  PatternBad = 'pattern.bad',
+  SichterReport = 'sichter.report.v1',
+  WGXGuardCompleted = 'wgx.guard.completed',
+  HeimgeistInsight = 'heimgeist.insight.v1',
+  HeimgeistActions = 'heimgeist.actions.v1',
   Custom = 'custom',
 }
 
@@ -198,4 +209,135 @@ export interface ExplainResponse {
   reasoning: string[];
   relatedInsights: string[];
   context: Record<string, unknown>;
+}
+
+/**
+ * Heimgewebe command from PR comment
+ */
+export interface HeimgewebeCommand {
+  id: string;
+  timestamp: Date;
+  tool: 'sichter' | 'wgx' | 'heimlern' | 'metarepo' | 'heimgeist';
+  command: string;
+  args: string[];
+  context: {
+    pr?: number;
+    repo: string;
+    author: string;
+    comment_id?: string;
+  };
+}
+
+/**
+ * Epic tracking
+ */
+export interface Epic {
+  id: string;
+  title: string;
+  description?: string;
+  linked_prs: number[];
+  phase: 'planning' | 'implementation' | 'review' | 'completed';
+  started_at: Date;
+  completed_at?: Date;
+  metadata?: Record<string, unknown>;
+}
+
+/**
+ * Incident record
+ */
+export interface Incident {
+  id: string;
+  severity: RiskSeverity;
+  description: string;
+  affected_services: string[];
+  detected_at: Date;
+  resolved_at?: Date;
+  root_cause?: {
+    type: 'pr' | 'deployment' | 'infrastructure' | 'external' | 'unknown';
+    reference?: string;
+  };
+  context?: Record<string, unknown>;
+}
+
+/**
+ * Pattern record for learning
+ */
+export interface Pattern {
+  id: string;
+  type: 'good' | 'bad';
+  name: string;
+  description: string;
+  occurrences: number;
+  examples: string[];
+  recommendation?: string;
+  created_at: Date;
+  updated_at: Date;
+}
+
+/**
+ * Risk assessment with alternatives
+ */
+export interface RiskAssessment {
+  level: RiskSeverity;
+  reasons: string[];
+  recommendations: Recommendation[];
+  confidence: number;
+}
+
+/**
+ * Recommendation with risks and alternatives
+ */
+export interface Recommendation {
+  action: string;
+  rationale: string;
+  risks: string[];
+  assumptions: string[];
+  alternatives: Alternative[];
+  confidence: number;
+}
+
+/**
+ * Alternative action
+ */
+export interface Alternative {
+  action: string;
+  pros: string[];
+  cons: string[];
+}
+
+/**
+ * Sichter report
+ */
+export interface SichterReport {
+  id: string;
+  pr: number;
+  timestamp: Date;
+  risk_level: RiskSeverity;
+  affected_layers: string[];
+  similar_prs: number[];
+  recommendations: string[];
+  analysis_depth: 'quick' | 'deep' | 'full';
+}
+
+/**
+ * WGX Guard result
+ */
+export interface WGXGuardResult {
+  id: string;
+  pr: number;
+  timestamp: Date;
+  scope: string;
+  status: 'passed' | 'failed' | 'warning';
+  checks: GuardCheck[];
+  duration_ms: number;
+}
+
+/**
+ * Individual guard check
+ */
+export interface GuardCheck {
+  name: string;
+  status: 'passed' | 'failed' | 'skipped' | 'warning';
+  message?: string;
+  details?: Record<string, unknown>;
 }

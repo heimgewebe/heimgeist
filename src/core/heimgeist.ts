@@ -12,6 +12,9 @@ import {
   ExplainRequest,
   ExplainResponse,
   RiskSeverity,
+  Epic,
+  Incident,
+  Pattern,
 } from '../types';
 import { loadConfig, getAutonomyLevelName } from '../config';
 
@@ -27,6 +30,9 @@ export class Heimgeist {
   private insights: Map<string, Insight> = new Map();
   private plannedActions: Map<string, PlannedAction> = new Map();
   private events: Map<string, ChronikEvent> = new Map();
+  private epics: Map<string, Epic> = new Map();
+  private incidents: Map<string, Incident> = new Map();
+  private patterns: Map<string, Pattern> = new Map();
   private startTime: Date;
   private eventsProcessed = 0;
   private actionsExecuted = 0;
@@ -149,6 +155,18 @@ export class Heimgeist {
 
     // Check for incident detection
     if (event.type === 'incident.detected') {
+      // Track incident
+      const incidentId =
+        (event.payload.incident_id as string | undefined) || `incident-${uuidv4()}`;
+      this.incidents.set(incidentId, {
+        id: incidentId,
+        severity: (event.payload.severity as RiskSeverity) || RiskSeverity.High,
+        description: (event.payload.description as string) || 'Unknown incident',
+        affected_services: (event.payload.affected_services as string[]) || [],
+        detected_at: event.timestamp,
+        context: event.payload.context as Record<string, unknown>,
+      });
+
       insights.push({
         id: uuidv4(),
         timestamp: new Date(),
@@ -163,6 +181,66 @@ export class Heimgeist {
           'Assess impact and scope',
           'Begin documentation',
         ],
+      });
+    }
+
+    // Check for Epic events
+    if (event.type === 'epic.linked') {
+      const epicId = event.payload.epic_id as string;
+      this.epics.set(epicId, {
+        id: epicId,
+        title: (event.payload.title as string) || 'Untitled Epic',
+        description: event.payload.description as string | undefined,
+        linked_prs: (event.payload.linked_prs as number[]) || [],
+        phase: (event.payload.phase as Epic['phase']) || 'planning',
+        started_at: event.timestamp,
+        metadata: event.payload.metadata as Record<string, unknown>,
+      });
+
+      insights.push({
+        id: uuidv4(),
+        timestamp: new Date(),
+        role: HeimgeistRole.Observer,
+        type: 'suggestion',
+        severity: RiskSeverity.Low,
+        title: 'Epic Linked',
+        description: `Epic "${event.payload.title}" has been created and is being tracked`,
+        source: event,
+      });
+    }
+
+    // Check for Pattern events
+    if (event.type === 'pattern.bad' || event.type === 'pattern.good') {
+      const patternId = `pattern-${uuidv4()}`;
+      const patternType: 'good' | 'bad' = event.type === 'pattern.good' ? 'good' : 'bad';
+
+      this.patterns.set(patternId, {
+        id: patternId,
+        type: patternType,
+        name: (event.payload.pattern_name as string) || 'Unnamed pattern',
+        description: (event.payload.description as string) || '',
+        occurrences: (event.payload.occurrences as number) || 1,
+        examples: (event.payload.examples as string[]) || [],
+        recommendation: event.payload.recommendation as string | undefined,
+        created_at: event.timestamp,
+        updated_at: event.timestamp,
+      });
+
+      const severity = patternType === 'bad' ? RiskSeverity.Medium : RiskSeverity.Low;
+
+      insights.push({
+        id: uuidv4(),
+        timestamp: new Date(),
+        role: HeimgeistRole.Observer,
+        type: 'pattern',
+        severity,
+        title: `${patternType === 'bad' ? 'Anti-' : ''}Pattern Recorded`,
+        description: `Pattern "${event.payload.pattern_name}" has been marked as ${patternType}`,
+        source: event,
+        recommendations:
+          patternType === 'bad'
+            ? ['Avoid this pattern in future PRs', 'Consider adding linter rules']
+            : ['Consider reusing this pattern', 'Document as best practice'],
       });
     }
 
@@ -530,6 +608,48 @@ export class Heimgeist {
    */
   getPlannedActions(): PlannedAction[] {
     return Array.from(this.plannedActions.values());
+  }
+
+  /**
+   * Get all tracked epics
+   */
+  getEpics(): Epic[] {
+    return Array.from(this.epics.values());
+  }
+
+  /**
+   * Get a specific epic by ID
+   */
+  getEpic(epicId: string): Epic | undefined {
+    return this.epics.get(epicId);
+  }
+
+  /**
+   * Get all tracked incidents
+   */
+  getIncidents(): Incident[] {
+    return Array.from(this.incidents.values());
+  }
+
+  /**
+   * Get a specific incident by ID
+   */
+  getIncident(incidentId: string): Incident | undefined {
+    return this.incidents.get(incidentId);
+  }
+
+  /**
+   * Get all recorded patterns
+   */
+  getPatterns(): Pattern[] {
+    return Array.from(this.patterns.values());
+  }
+
+  /**
+   * Get patterns by type
+   */
+  getPatternsByType(type: 'good' | 'bad'): Pattern[] {
+    return Array.from(this.patterns.values()).filter((p) => p.type === type);
   }
 }
 
