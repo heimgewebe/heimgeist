@@ -1,6 +1,7 @@
 import { v4 as uuidv4 } from 'uuid';
 import * as fs from 'fs/promises';
 import * as path from 'path';
+import { setTimeout } from 'timers/promises';
 import {
   ChronikEvent,
   EventType,
@@ -9,7 +10,6 @@ import {
   RiskSeverity,
   PlannedAction,
   AutonomyLevel,
-  ActionStep,
 } from '../types';
 
 // Constants for file paths
@@ -82,7 +82,7 @@ export class HeimgeistCoreLoop {
       try {
         await this.tick();
         // Sleep a bit to avoid tight loop in this mock
-        await new Promise(resolve => setTimeout(resolve, 1000));
+        await setTimeout(1000);
       } catch (error) {
         console.error('Error in Core Loop tick:', error);
       }
@@ -137,14 +137,14 @@ export class HeimgeistCoreLoop {
     }
   }
 
-  private async buildContext(event: ChronikEvent): Promise<any> {
+  private async buildContext(_event: ChronikEvent): Promise<any> {
     // Placeholder for fetching context from semantAH or history
     return {
         // e.g. history of this repo/branch
     };
   }
 
-  private assessRisk(event: ChronikEvent, context: any): { level: RiskSeverity; reasons: string[] } {
+  private assessRisk(event: ChronikEvent, _context: any): { level: RiskSeverity; reasons: string[] } {
     const payload = event.payload as any;
 
     // Heuristic: CI Failure on main
@@ -256,7 +256,7 @@ export class HeimgeistCoreLoop {
     }
   }
 
-  private isSafeAction(action: PlannedAction): boolean {
+  private isSafeAction(_action: PlannedAction): boolean {
       // Define what is "safe" (non-destructive)
       // e.g., triggering analysis is safe.
       // blocking merges is safe (but intrusive).
