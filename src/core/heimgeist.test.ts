@@ -54,6 +54,18 @@ describe('Heimgeist', () => {
       heimgeist.setAutonomyLevel(AutonomyLevel.Passive);
       expect(heimgeist.getConfig().autonomyLevel).toBe(AutonomyLevel.Passive);
     });
+
+    it('should protect internal configuration from external mutation', () => {
+      const config = heimgeist.getConfig();
+
+      config.activeRoles.push(HeimgeistRole.Observer);
+      config.policies[0].name = 'mutated-policy';
+
+      const freshConfig = heimgeist.getConfig();
+
+      expect(freshConfig.activeRoles.length).toBe(4);
+      expect(freshConfig.policies[0].name).not.toBe('mutated-policy');
+    });
   });
 
   describe('event processing', () => {
