@@ -1,3 +1,4 @@
 export { Heimgeist, createHeimgeist } from './heimgeist';
 export { CommandParser } from './command-parser';
-export { HeimgeistCoreLoop, MockChronikClient, ChronikClient } from './loop';
+export { HeimgeistCoreLoop, ChronikClient } from './loop';
+export { MockChronikClient } from './chronik-mock';

@@ -341,3 +341,11 @@ export interface GuardCheck {
   message?: string;
   details?: Record<string, unknown>;
 }
+
+/**
+ * Interface for Chronik Client
+ */
+export interface ChronikClient {
+  nextEvent(types: string[]): Promise<ChronikEvent | null>;
+  append(event: Partial<ChronikEvent>): Promise<void>;
+}
