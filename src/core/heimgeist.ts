@@ -591,7 +591,17 @@ export class Heimgeist {
    * Get current configuration
    */
   getConfig(): HeimgeistConfig {
-    return { ...this.config };
+    return {
+      autonomyLevel: this.config.autonomyLevel,
+      activeRoles: [...this.config.activeRoles],
+      policies: this.config.policies.map((policy) => ({
+        ...policy,
+        allowedActions: [...policy.allowedActions],
+        conditions: policy.conditions ? { ...policy.conditions } : undefined,
+      })),
+      eventSources: this.config.eventSources.map((source) => ({ ...source })),
+      outputs: this.config.outputs.map((output) => ({ ...output })),
+    };
   }
 
   /**
