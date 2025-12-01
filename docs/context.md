@@ -1,4 +1,4 @@
-# Heimgeist Kontext
+# plexer Kontext
 
 Heimgeist ist der systemweite Meta-Agent, der sämtliche Repos des
 Heimgewebes beobachtet, Risiken erkennt, Drift identifiziert und
@@ -12,12 +12,12 @@ Er nutzt:
 - wgx → Guard/Smoke
 - hausKI → orchestrierte Aktionen
 
-## Heimplex als Event-Eintrittspunkt
+## plexer als Event-Eintrittspunkt
 
-Events sollten Heimgeist nicht mehr direkt aus Workflows erreichen,
-sondern über Heimplex:
+Events sollten Heimgeist primär nicht mehr direkt aus Workflows erreichen,
+sondern über plexer:
 
-- Heimplex nimmt Events von allen Repos entgegen
+- plexer nimmt Events von allen Repos entgegen
 - prüft Minimalstruktur (type, source, payload)
 - loggt und routet die Events an Heimgeist weiter
 
@@ -26,4 +26,4 @@ Heimgeist bleibt damit fokussiert auf:
 - Interpretation (Risiko, Muster, Empfehlungen)
 - Lernen aus Ereignissen über Zeit
 
-und überlässt Heimplex den Transport.
+und überlässt plexer den Transport.
