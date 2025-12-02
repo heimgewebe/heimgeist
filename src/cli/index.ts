@@ -2,7 +2,7 @@
 
 import { Command } from 'commander';
 import { createHeimgeist, Heimgeist, HeimgeistCoreLoop, MockChronikClient } from '../core';
-import { getAutonomyLevelName } from '../config';
+import { getAutonomyLevelName, loadConfig } from '../config';
 import { startServer } from '../api';
 import { RiskSeverity, EventType, ChronikEvent } from '../types';
 import { v4 as uuidv4 } from 'uuid';
@@ -398,22 +398,24 @@ program
   .action(async (options) => {
     console.log('\nStarting Heimgeist Core Loop...\n');
 
+    const config = loadConfig();
     const chronik = new MockChronikClient();
-    const loop = new HeimgeistCoreLoop(chronik, 2); // Autonomy Level 2 (Warning)
+
+    // Use configured autonomy level or default to Warning (2)
+    const loop = new HeimgeistCoreLoop(chronik, config.autonomyLevel);
 
     if (options.injectFailure) {
-      console.log('Injecting simulated CI failure on main...');
+      console.log('Injecting simulated Critical Incident...');
       chronik.addEvent({
         id: uuidv4(),
-        type: EventType.CIResult,
+        type: EventType.IncidentDetected,
         timestamp: new Date(),
-        source: 'github',
+        source: 'monitoring',
         payload: {
-          pipeline_id: '12345',
-          repo: 'heimgewebe/core',
-          branch: 'main',
-          status: 'failed',
-          trigger: 'push',
+          incident_id: 'INC-123',
+          severity: RiskSeverity.Critical,
+          description: 'Database meltdown',
+          affected_services: ['api', 'db'],
         },
       });
     }

@@ -51,6 +51,7 @@ const DEFAULT_CONFIG: HeimgeistConfig = {
       enabled: true,
     },
   ],
+  persistenceEnabled: true,
 };
 
 /**

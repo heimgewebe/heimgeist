@@ -14,7 +14,33 @@ describe('Heimgeist', () => {
 
   beforeEach(() => {
     mockLogger = new MockLogger();
-    heimgeist = createHeimgeist(undefined, mockLogger);
+    heimgeist = createHeimgeist({
+        autonomyLevel: AutonomyLevel.Warning,
+        activeRoles: [
+          HeimgeistRole.Observer,
+          HeimgeistRole.Critic,
+          HeimgeistRole.Director,
+          HeimgeistRole.Archivist,
+        ],
+        policies: [
+            {
+                name: 'test-policy',
+                description: 'Test Policy',
+                minAutonomyLevel: AutonomyLevel.Warning,
+                allowedActions: ['analyze'],
+            }
+        ],
+        eventSources: [],
+        outputs: [
+            {
+                name: 'console',
+                type: 'console',
+                config: {},
+                enabled: true
+            }
+        ],
+        persistenceEnabled: false,
+    }, mockLogger);
   });
 
   describe('status', () => {
