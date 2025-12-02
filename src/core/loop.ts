@@ -3,7 +3,6 @@ import {
   EventType,
   AutonomyLevel,
   ChronikClient,
-  HeimgeistRole,
 } from '../types';
 import { Heimgeist, createHeimgeist } from './heimgeist';
 import { loadConfig } from '../config';
