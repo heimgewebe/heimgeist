@@ -10,7 +10,9 @@ import {
   RiskSeverity,
   PlannedAction,
   AutonomyLevel,
+  ChronikClient,
 } from '../types';
+import { STATE_DIR, INSIGHTS_DIR, ACTIONS_DIR } from '../config/state-paths';
 
 // Type definitions for event payloads and context
 interface EventContext {
@@ -29,11 +31,6 @@ interface CIResultPayload {
   [key: string]: unknown;
 }
 
-// Constants for file paths
-const STATE_DIR = 'heimgeist_state';
-const INSIGHTS_DIR = path.join(STATE_DIR, 'insights');
-const ACTIONS_DIR = path.join(STATE_DIR, 'actions');
-
 // Ensure state directories exist
 async function ensureStateDirs() {
   await fs.mkdir(STATE_DIR, { recursive: true });
@@ -41,44 +38,9 @@ async function ensureStateDirs() {
   await fs.mkdir(ACTIONS_DIR, { recursive: true });
 }
 
-// Interface for Chronik Client
-export interface ChronikClient {
-  nextEvent(types: string[]): Promise<ChronikEvent | null>;
-  append(event: Partial<ChronikEvent>): Promise<void>;
-}
-
-// Mock Chronik Client
-export class MockChronikClient implements ChronikClient {
-  private events: ChronikEvent[] = [];
-
-  constructor() {
-    // Seed with a sample event if empty?
-    // For now, we allow injecting events manually or via a "seed" method.
-  }
-
-  // Method to inject an event (for testing/demo)
-  addEvent(event: ChronikEvent) {
-    this.events.push(event);
-  }
-
-  async nextEvent(types: string[]): Promise<ChronikEvent | null> {
-    // Simple FIFO for the mock
-    if (this.events.length > 0) {
-      const event = this.events.shift();
-      if (event && types.includes(event.type)) {
-        return event;
-      }
-      // If event type doesn't match, maybe put it back or discard?
-      // For this simple mock, we assume we only feed relevant events.
-      if (event) return event;
-    }
-    return null;
-  }
-
-  async append(event: Partial<ChronikEvent>): Promise<void> {
-    console.log(`[MockChronik] Appended event: ${event.type}`, event.payload);
-  }
-}
+// Re-export ChronikClient for backward compatibility if needed,
+// though it is preferred to import from types
+export { ChronikClient };
 
 export class HeimgeistCoreLoop {
   private running = false;
