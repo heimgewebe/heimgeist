@@ -1,4 +1,6 @@
 import { v4 as uuidv4 } from 'uuid';
+import * as fs from 'fs';
+import * as path from 'path';
 import {
   HeimgeistConfig,
   HeimgeistRole,
@@ -17,6 +19,7 @@ import {
   Pattern,
 } from '../types';
 import { loadConfig, getAutonomyLevelName } from '../config';
+import { STATE_DIR, INSIGHTS_DIR, ACTIONS_DIR } from '../config/state-paths';
 import { Logger, defaultLogger } from './logger';
 
 /**
@@ -41,9 +44,61 @@ export class Heimgeist {
   private logger: Logger;
 
   constructor(config?: HeimgeistConfig, logger: Logger = defaultLogger) {
+    // console.log('Heimgeist constructor config:', config);
     this.config = config || loadConfig();
+    // console.log('Heimgeist effective config:', this.config);
     this.logger = logger;
     this.startTime = new Date();
+
+    if (this.config.persistenceEnabled !== false) {
+      this.loadState();
+    }
+  }
+
+  /**
+   * Load state from persistence
+   */
+  private loadState(): void {
+    try {
+      // Safety check just in case
+      if (this.config.persistenceEnabled === false) return;
+
+      if (!fs.existsSync(INSIGHTS_DIR)) return;
+
+      const insightFiles = fs.readdirSync(INSIGHTS_DIR);
+      for (const file of insightFiles) {
+        if (file.endsWith('.json')) {
+          try {
+            const content = fs.readFileSync(path.join(INSIGHTS_DIR, file), 'utf-8');
+            const insight = JSON.parse(content) as Insight;
+            this.insights.set(insight.id, insight);
+          } catch (e) {
+            this.logger.warn(`Failed to load insight ${file}: ${e}`);
+          }
+        }
+      }
+
+      if (!fs.existsSync(ACTIONS_DIR)) return;
+
+      const actionFiles = fs.readdirSync(ACTIONS_DIR);
+      for (const file of actionFiles) {
+        if (file.endsWith('.json')) {
+          try {
+            const content = fs.readFileSync(path.join(ACTIONS_DIR, file), 'utf-8');
+            const action = JSON.parse(content) as PlannedAction;
+            this.plannedActions.set(action.id, action);
+          } catch (e) {
+            this.logger.warn(`Failed to load action ${file}: ${e}`);
+          }
+        }
+      }
+
+      // Update counters based on loaded state
+      this.eventsProcessed = 0; // Reset, as we don't persist event count yet
+
+    } catch (error) {
+      this.logger.warn(`Failed to load state: ${error}`);
+    }
   }
 
   /**
@@ -357,6 +412,44 @@ export class Heimgeist {
    * Archivist role: Persist insights to various outputs
    */
   private async archive(insights: Insight[]): Promise<void> {
+    // File persistence
+    if (this.config.persistenceEnabled !== false) {
+        // Ensure state directories exist
+        try {
+        if (!fs.existsSync(STATE_DIR)) fs.mkdirSync(STATE_DIR, { recursive: true });
+        if (!fs.existsSync(INSIGHTS_DIR)) fs.mkdirSync(INSIGHTS_DIR, { recursive: true });
+        if (!fs.existsSync(ACTIONS_DIR)) fs.mkdirSync(ACTIONS_DIR, { recursive: true });
+        } catch (e) {
+        this.logger.error(`Failed to create state directories: ${e}`);
+        }
+
+        // Persist new insights
+        for (const insight of insights) {
+        try {
+            fs.writeFileSync(
+            path.join(INSIGHTS_DIR, `${insight.id}.json`),
+            JSON.stringify(insight, null, 2)
+            );
+        } catch (e) {
+            this.logger.error(`Failed to persist insight ${insight.id}: ${e}`);
+        }
+        }
+
+        // Persist new planned actions
+        for (const action of this.plannedActions.values()) {
+            if (insights.some(i => i.id === action.trigger.id)) {
+                try {
+                    fs.writeFileSync(
+                    path.join(ACTIONS_DIR, `${action.id}.json`),
+                    JSON.stringify(action, null, 2)
+                    );
+                } catch (e) {
+                    this.logger.error(`Failed to persist action ${action.id}: ${e}`);
+                }
+            }
+        }
+    }
+
     for (const output of this.config.outputs) {
       if (!output.enabled) continue;
 

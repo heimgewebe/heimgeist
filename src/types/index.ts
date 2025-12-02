@@ -119,6 +119,7 @@ export interface HeimgeistConfig {
   policies: Policy[];
   eventSources: EventSource[];
   outputs: OutputConfig[];
+  persistenceEnabled?: boolean;
 }
 
 /**

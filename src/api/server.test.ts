@@ -20,6 +20,7 @@ describe('Heimgeist API Server', () => {
       policies: [],
       eventSources: [],
       outputs: [],
+      persistenceEnabled: false,
     });
     app = createApp(heimgeist);
   });
