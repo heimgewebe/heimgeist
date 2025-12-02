@@ -177,20 +177,36 @@ export class Heimgeist {
 
     // Check for CI failures
     if (event.type === 'ci.result' && event.payload?.status === 'failed') {
+      const isMainBranch = event.payload.branch === 'main' || event.payload.ref === 'refs/heads/main';
+      const severity = isMainBranch ? RiskSeverity.Critical : RiskSeverity.Medium;
+      const title = isMainBranch ? 'Critical CI Failure on Main' : 'CI Build Failed';
+      const description = isMainBranch
+        ? `Build failure detected on main branch in ${event.source}. This is a critical stability risk.`
+        : `Build failure detected in ${event.source}. This will hurt later if not addressed.`;
+
+      const recommendations = [
+        'Review the build logs',
+        'Check for recent changes that might have caused the failure',
+      ];
+
+      if (isMainBranch) {
+        recommendations.unshift('Immediately stop merging into main');
+        recommendations.push('Run guard checks on affected areas');
+      } else {
+        recommendations.push('Consider adding tests to prevent regression');
+      }
+
       insights.push({
         id: uuidv4(),
         timestamp: new Date(),
         role: HeimgeistRole.Observer,
         type: 'risk',
-        severity: RiskSeverity.Medium,
-        title: 'CI Build Failed',
-        description: `Build failure detected in ${event.source}. This will hurt later if not addressed.`,
+        severity,
+        title,
+        description,
         source: event,
-        recommendations: [
-          'Review the build logs',
-          'Check for recent changes that might have caused the failure',
-          'Consider adding tests to prevent regression',
-        ],
+        recommendations,
+        context: { isMainBranch },
       });
     }
 
@@ -411,6 +427,41 @@ export class Heimgeist {
 
     // Plan actions based on insight type
     if (insight.type === 'risk' && insight.severity === RiskSeverity.Critical) {
+      // Specialized action plan for Critical CI Failure on Main
+      if (insight.title === 'Critical CI Failure on Main') {
+        return {
+          id: uuidv4(),
+          timestamp: new Date(),
+          trigger: insight,
+          steps: [
+            {
+              order: 1,
+              tool: 'wgx-guard',
+              parameters: { scope: 'affected', branch: 'main' },
+              description: 'Run guard checks on main to verify stability',
+              status: 'pending',
+            },
+            {
+              order: 2,
+              tool: 'sichter-quick',
+              parameters: { target: insight.source?.source, context: 'ci-failure' },
+              description: 'Quick analysis of the failure context',
+              status: 'pending',
+            },
+            {
+              order: 3,
+              tool: 'report-generate',
+              parameters: { format: 'markdown', include: ['insights', 'recommendations'] },
+              description: 'Generate critical incident report',
+              status: 'pending',
+            },
+          ],
+          requiresConfirmation,
+          status: requiresConfirmation ? 'pending' : 'approved',
+        };
+      }
+
+      // Default critical action plan
       return {
         id: uuidv4(),
         timestamp: new Date(),
