@@ -17,10 +17,12 @@ import {
   Epic,
   Incident,
   Pattern,
+  HeimgewebeCommand,
 } from '../types';
 import { loadConfig, getAutonomyLevelName } from '../config';
 import { STATE_DIR, INSIGHTS_DIR, ACTIONS_DIR } from '../config/state-paths';
 import { Logger, defaultLogger } from './logger';
+import { CommandParser } from './command-parser';
 
 /**
  * Heimgeist - The System Self-Reflection Engine
@@ -304,6 +306,42 @@ export class Heimgeist {
       });
     }
 
+    // Check for Command events
+    if (event.type === 'heimgewebe.command.v1') {
+      // payload should be partial or full HeimgewebeCommand
+      // We assume it's pre-parsed, but we can also use CommandParser.validateCommand to be sure
+      const command = event.payload as unknown as HeimgewebeCommand;
+
+      // Validate command
+      const validation = CommandParser.validateCommand(command);
+
+      if (validation.valid) {
+        insights.push({
+          id: uuidv4(),
+          timestamp: new Date(),
+          role: HeimgeistRole.Observer,
+          type: 'suggestion',
+          severity: RiskSeverity.Low,
+          title: `Command Received: ${command.tool} /${command.command}`,
+          description: `Received valid command for tool ${command.tool}: /${command.command} ${command.args.join(' ')}`,
+          source: event,
+          context: { command },
+        });
+      } else {
+        insights.push({
+          id: uuidv4(),
+          timestamp: new Date(),
+          role: HeimgeistRole.Observer,
+          type: 'risk',
+          severity: RiskSeverity.Low,
+          title: 'Invalid Command Received',
+          description: `Received invalid command: ${validation.error}`,
+          source: event,
+          recommendations: ['Check command syntax', 'Refer to documentation'],
+        });
+      }
+    }
+
     return insights;
   }
 
@@ -405,7 +443,67 @@ export class Heimgeist {
       };
     }
 
+    // Handle Command insights
+    if (insight.type === 'suggestion' && insight.title.startsWith('Command Received:')) {
+      const command = insight.context?.command as HeimgewebeCommand;
+      if (command) {
+        // If command is for heimgeist /analyse, we map it
+        if (command.tool === 'heimgeist' && command.command === 'analyse') {
+          return {
+            id: uuidv4(),
+            timestamp: new Date(),
+            trigger: insight,
+            steps: [
+              {
+                order: 1,
+                tool: 'heimgeist-analyse',
+                parameters: { target: 'all', depth: 'quick' }, // Defaults
+                description: 'Run Heimgeist Analysis',
+                status: 'pending',
+              },
+            ],
+            requiresConfirmation: false, // Commands are explicit requests
+            status: 'approved',
+          };
+        }
+        // General command execution action
+        return {
+          id: uuidv4(),
+          timestamp: new Date(),
+          trigger: insight,
+          steps: [
+            {
+              order: 1,
+              tool: `${command.tool}-${command.command}`,
+              parameters: { args: command.args },
+              description: `Execute ${command.tool} /${command.command}`,
+              status: 'pending',
+            },
+          ],
+          requiresConfirmation: false,
+          status: 'approved',
+        };
+      }
+    }
+
     return null;
+  }
+
+  /**
+   * Public method to persist a specific action (e.g. after update)
+   */
+  public async saveAction(action: PlannedAction): Promise<void> {
+    if (this.config.persistenceEnabled === false) return;
+
+    try {
+      if (!fs.existsSync(ACTIONS_DIR)) fs.mkdirSync(ACTIONS_DIR, { recursive: true });
+      fs.writeFileSync(
+        path.join(ACTIONS_DIR, `${action.id}.json`),
+        JSON.stringify(action, null, 2)
+      );
+    } catch (e) {
+      this.logger.error(`Failed to persist action ${action.id}: ${e}`);
+    }
   }
 
   /**
