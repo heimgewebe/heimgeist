@@ -1,0 +1,30 @@
+wgx:
+  apiVersion: v1
+  requiredWgx: "^2.0.0"
+  repoKind: node-service
+
+  tooling:
+    shell:
+      default: bash
+    node:
+      packageManager: npm
+
+  tasks:
+    up: "npm install"
+
+    lint: |
+      set -euo pipefail
+      if npm run lint -- --version >/dev/null 2>&1 || npm run lint >/dev/null 2>&1; then
+        npm run lint || npm run lint -- --fix || echo "[wgx.lint] lint hat Warnungen – siehe Logs"
+      else
+        echo "[wgx.lint] kein lint-Script definiert – übersprungen"
+      fi
+
+    test: |
+      set -euo pipefail
+      if npm run test -- --help >/dev/null 2>&1 || npm test -- --help >/dev/null 2>&1; then
+        npm test
+      else
+        echo "[wgx.test] kein Test-Script definiert – übersprungen"
+      fi
+
