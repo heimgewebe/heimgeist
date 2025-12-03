@@ -26,6 +26,14 @@ import { Logger, defaultLogger } from './logger';
 import { CommandParser } from './command-parser';
 
 /**
+ * Insight context codes for identifying specific types of issues
+ */
+const INSIGHT_CODE = {
+  CI_FAILURE_MAIN: 'ci_failure_main',
+  CI_FAILURE_GENERIC: 'ci_failure_generic',
+} as const;
+
+/**
  * Heimgeist - The System Self-Reflection Engine
  *
  * Character: dry, slightly ironic, analytical
@@ -209,7 +217,7 @@ export class Heimgeist {
         recommendations,
         context: { 
           isMainBranch,
-          code: isMainBranch ? 'ci_failure_main' : 'ci_failure_generic'
+          code: isMainBranch ? INSIGHT_CODE.CI_FAILURE_MAIN : INSIGHT_CODE.CI_FAILURE_GENERIC
         },
       });
     }
@@ -432,7 +440,7 @@ export class Heimgeist {
     // Plan actions based on insight type
     if (insight.type === 'risk' && insight.severity === RiskSeverity.Critical) {
       // Specialized action plan for Critical CI Failure on Main
-      if (insight.context?.code === 'ci_failure_main') {
+      if (insight.context?.code === INSIGHT_CODE.CI_FAILURE_MAIN) {
         return {
           id: uuidv4(),
           timestamp: new Date(),
