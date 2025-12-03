@@ -14,7 +14,7 @@ describe('CLI Command Logic', () => {
   let heimgeist: Heimgeist;
 
   beforeEach(() => {
-    // Create a fresh instance for each test
+    // Create a fresh instance for each test with persistence disabled
     heimgeist = new Heimgeist({
       autonomyLevel: AutonomyLevel.Warning,
       activeRoles: [
@@ -26,12 +26,28 @@ describe('CLI Command Logic', () => {
       policies: [],
       eventSources: [],
       outputs: [],
+      persistenceEnabled: false,
     });
   });
 
   describe('status command logic', () => {
     it('should get current status', () => {
-      const status = heimgeist.getStatus();
+      // Use a fresh instance with persistence disabled to avoid state leaks
+      const cleanHeimgeist = new Heimgeist({
+        autonomyLevel: AutonomyLevel.Warning,
+        activeRoles: [
+            HeimgeistRole.Observer,
+            HeimgeistRole.Critic,
+            HeimgeistRole.Director,
+            HeimgeistRole.Archivist,
+        ],
+        policies: [],
+        eventSources: [],
+        outputs: [],
+        persistenceEnabled: false
+      });
+
+      const status = cleanHeimgeist.getStatus();
 
       expect(status).toBeDefined();
       expect(status.version).toBe('1.0.0');
@@ -59,7 +75,22 @@ describe('CLI Command Logic', () => {
 
   describe('risk command logic', () => {
     it('should return low risk with no events', () => {
-      const assessment = heimgeist.getRiskAssessment();
+      // Create a fresh instance specifically for this test to ensure no state pollution
+      const freshHeimgeist = new Heimgeist({
+        autonomyLevel: AutonomyLevel.Warning,
+        activeRoles: [
+            HeimgeistRole.Observer,
+            HeimgeistRole.Critic,
+            HeimgeistRole.Director,
+            HeimgeistRole.Archivist,
+        ],
+        policies: [],
+        eventSources: [],
+        outputs: [],
+        persistenceEnabled: false // Ensure no persistence loading
+      });
+
+      const assessment = freshHeimgeist.getRiskAssessment();
 
       expect(assessment.level).toBe('low');
       expect(assessment.reasons).toBeInstanceOf(Array);

@@ -6,6 +6,7 @@ import {
   HeimgeistRole,
   AutonomyLevel,
   ChronikEvent,
+  EventType,
   Insight,
   PlannedAction,
   AnalysisRequest,
@@ -14,6 +15,7 @@ import {
   ExplainRequest,
   ExplainResponse,
   RiskSeverity,
+  EventType,
   Epic,
   Incident,
   Pattern,
@@ -23,6 +25,14 @@ import { loadConfig, getAutonomyLevelName } from '../config';
 import { STATE_DIR, INSIGHTS_DIR, ACTIONS_DIR } from '../config/state-paths';
 import { Logger, defaultLogger } from './logger';
 import { CommandParser } from './command-parser';
+
+/**
+ * Insight context codes for identifying specific types of issues
+ */
+const INSIGHT_CODE = {
+  CI_FAILURE_MAIN: 'ci_failure_main',
+  CI_FAILURE_GENERIC: 'ci_failure_generic',
+} as const;
 
 /**
  * Heimgeist - The System Self-Reflection Engine
@@ -176,26 +186,49 @@ export class Heimgeist {
     const insights: Insight[] = [];
 
     // Check for CI failures
-    if (event.type === 'ci.result' && event.payload?.status === 'failed') {
+    if (event.type === EventType.CIResult && event.payload?.status === 'failed') {
+      const isMainBranch = event.payload.branch === 'main' || event.payload.ref === 'refs/heads/main';
+      const severity = isMainBranch ? RiskSeverity.Critical : RiskSeverity.Medium;
+      const title = isMainBranch ? 'Critical CI Failure on Main' : 'CI Build Failed';
+      const description = isMainBranch
+        ? `Build failure detected on main branch in ${event.source}. This is a critical stability risk.`
+        : `Build failure detected in ${event.source}. This will hurt later if not addressed.`;
+
+      const recommendations = [
+        'Review the build logs',
+        'Check for recent changes that might have caused the failure',
+      ];
+
+      const context: Record<string, unknown> = { isMainBranch };
+
+      if (isMainBranch) {
+        recommendations.unshift('Immediately stop merging into main');
+        recommendations.push('Run guard checks on affected areas');
+        context.code = 'ci_failure_main';
+      } else {
+        recommendations.push('Consider adding tests to prevent regression');
+        context.code = 'ci_failure_generic';
+      }
+
       insights.push({
         id: uuidv4(),
         timestamp: new Date(),
         role: HeimgeistRole.Observer,
         type: 'risk',
-        severity: RiskSeverity.Medium,
-        title: 'CI Build Failed',
-        description: `Build failure detected in ${event.source}. This will hurt later if not addressed.`,
+        severity,
+        title,
+        description,
         source: event,
-        recommendations: [
-          'Review the build logs',
-          'Check for recent changes that might have caused the failure',
-          'Consider adding tests to prevent regression',
-        ],
+        recommendations,
+        context: { 
+          isMainBranch,
+          code: isMainBranch ? INSIGHT_CODE.CI_FAILURE_MAIN : INSIGHT_CODE.CI_FAILURE_GENERIC
+        },
       });
     }
 
     // Check for deploy failures
-    if (event.type === 'deploy.failed') {
+    if (event.type === EventType.DeployFailed) {
       insights.push({
         id: uuidv4(),
         timestamp: new Date(),
@@ -214,7 +247,7 @@ export class Heimgeist {
     }
 
     // Check for incident detection
-    if (event.type === 'incident.detected') {
+    if (event.type === EventType.IncidentDetected) {
       // Track incident
       const incidentId =
         (event.payload.incident_id as string | undefined) || `incident-${uuidv4()}`;
@@ -247,7 +280,7 @@ export class Heimgeist {
     }
 
     // Check for Epic events
-    if (event.type === 'epic.linked') {
+    if (event.type === EventType.EpicLinked) {
       const epicId = event.payload.epic_id as string;
       this.epics.set(epicId, {
         id: epicId,
@@ -272,9 +305,9 @@ export class Heimgeist {
     }
 
     // Check for Pattern events
-    if (event.type === 'pattern.bad' || event.type === 'pattern.good') {
+    if (event.type === EventType.PatternBad || event.type === EventType.PatternGood) {
       const patternId = `pattern-${uuidv4()}`;
-      const patternType: 'good' | 'bad' = event.type === 'pattern.good' ? 'good' : 'bad';
+      const patternType: 'good' | 'bad' = event.type === EventType.PatternGood ? 'good' : 'bad';
 
       this.patterns.set(patternId, {
         id: patternId,
@@ -307,7 +340,7 @@ export class Heimgeist {
     }
 
     // Check for Command events
-    if (event.type === 'heimgewebe.command.v1') {
+    if (event.type === EventType.Command) {
       // payload should be partial or full HeimgewebeCommand
       // We assume it's pre-parsed, but we can also use CommandParser.validateCommand to be sure
       const command = event.payload as unknown as HeimgewebeCommand;
@@ -411,6 +444,41 @@ export class Heimgeist {
 
     // Plan actions based on insight type
     if (insight.type === 'risk' && insight.severity === RiskSeverity.Critical) {
+      // Specialized action plan for Critical CI Failure on Main
+      if (insight.context?.code === INSIGHT_CODE.CI_FAILURE_MAIN) {
+        return {
+          id: uuidv4(),
+          timestamp: new Date(),
+          trigger: insight,
+          steps: [
+            {
+              order: 1,
+              tool: 'wgx-guard',
+              parameters: { scope: 'affected', branch: 'main' },
+              description: 'Run guard checks on main to verify stability',
+              status: 'pending',
+            },
+            {
+              order: 2,
+              tool: 'sichter-quick',
+              parameters: { target: insight.source?.source, context: 'ci-failure' },
+              description: 'Quick analysis of the failure context',
+              status: 'pending',
+            },
+            {
+              order: 3,
+              tool: 'report-generate',
+              parameters: { format: 'markdown', include: ['insights', 'recommendations'] },
+              description: 'Generate critical incident report',
+              status: 'pending',
+            },
+          ],
+          requiresConfirmation,
+          status: requiresConfirmation ? 'pending' : 'approved',
+        };
+      }
+
+      // Default critical action plan
       return {
         id: uuidv4(),
         timestamp: new Date(),

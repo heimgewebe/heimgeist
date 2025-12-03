@@ -35,7 +35,7 @@ Minimalziel:
 
 ### 3.1 Inputs
 
-Pflicht-Events (aus `chronik`):
+Events aus `chronik` (Plexer):
 
 - `ci.result`
   - Felder (Minimum):
@@ -47,19 +47,22 @@ Pflicht-Events (aus `chronik`):
     - `linked_pr` (optional: PR-Nummer)
 - `pr.opened`
 - `pr.merged`
+- `heimgewebe.command.v1` (Direkte Befehle via PR-Kommentare)
+- `deploy.failed`
+- `incident.detected`
+
+Hinweis: Während diese Events bereits akzeptiert und persistiert werden, ist die spezialisierte Risikologik in v1 primär auf `ci.result` fokussiert.
 
 Später erweiterbar (nur referenziert, nicht notwendig für v1):
 
-- `incident.detected`
 - `pattern.bad` / `pattern.good`
-- `deploy.failed`
 
 ### 3.2 Outputs
 
 Heimgeist schreibt **zwei primäre Artifacts**:
 
 1. **Insights**
-   - Speicherort: z. B. `heimgeist_state/insights/*.json`
+   - Speicherort: `heimgeist_state/insights/*.json`
    - Felder:
      - `id`
      - `timestamp`
@@ -70,7 +73,7 @@ Heimgeist schreibt **zwei primäre Artifacts**:
      - `related_entities` (PRs, Repos, Workflows, Incidents)
 
 2. **Actions** (empfohlen oder pending)
-   - Speicherort: z. B. `heimgeist_state/actions/*.json`
+   - Speicherort: `heimgeist_state/actions/*.json`
    - Felder:
      - `id`
      - `timestamp`
@@ -80,7 +83,7 @@ Heimgeist schreibt **zwei primäre Artifacts**:
      - `reason` (Verweis auf Insight-ID)
      - `autonomy_required` (Mindestlevel)
 
-Optional zusätzlich:
+Optional/Zukunft:
 
 - Export in `chronik` als Events: `heimgeist.insight.v1`, `heimgeist.action.proposed.v1`.
 
@@ -103,7 +106,7 @@ Der Core Loop folgt einem einfachen Schema:
 ```ts
 while (true) {
   const event = chronik.nextEvent({
-    types: ['ci.result', 'pr.opened', 'pr.merged']
+    types: ['ci.result', 'pr.opened', 'pr.merged', 'heimgewebe.command.v1', ...]
   });
 
   if (!event) {
@@ -123,21 +126,6 @@ while (true) {
     const safeActions = filterNonDestructive(actions);
     await executeSafeActions(safeActions);
   }
-
-  // Optional: Insights & Actions als Events in chronik zurückschreiben
-  for (const insight of insights) {
-    await chronik.append({
-      type: 'heimgeist.insight.v1',
-      payload: insight
-    });
-  }
-
-  for (const action of actions) {
-    await chronik.append({
-      type: 'heimgeist.action.proposed.v1',
-      payload: action
-    });
-  }
 }
 ```
 
@@ -149,11 +137,10 @@ Ziel: Einfache, aber sinnvolle Heuristik, die später durch heimlern ersetzt/erw
 
 Beispiele:
 - `ci.result.status == 'failed'` UND `trigger == 'pr'`
-  → `risk.level = 'high'`, insbesondere wenn:
-  - derselbe PR bereits mehrfach CI-Fehler erzeugt hat,
-  - der betroffene Bereich „kritisch“ ist (z. B. Auth, Zahlung, Persistenz).
+  → `risk.level = 'medium'` (Implementiert).
+  - Vision: `high`, insbesondere wenn derselbe PR bereits mehrfach CI-Fehler erzeugt hat.
 - `ci.result.status == 'failed'` auf `main`
-  → automatisch `risk.level = 'critical'`.
+  → `risk.level = 'critical'` (Zielverhalten).
 - `pr.opened` mit Änderungen in bestimmten Pfaden (`.github/workflows/**`, `infra/**`)
   → `risk.level = 'elevated'`.
 
@@ -216,7 +203,6 @@ Schritte:
    - `status = 'pending'`.
 4. Ausgabe:
    - Insight & Action als Dateien unter `heimgeist_state/…`
-   - optional: Event `heimgeist.action.proposed.v1` in `chronik`.
 5. Leitstand kann diesen Zustand auslesen (später UI, erst mal CLI/JSON).
 
 ---
@@ -243,17 +229,19 @@ Minimal-CLI-Kommandos für Heimgeist:
 heimgeist status
 
 # Letzte Insights anzeigen
-heimgeist insights --limit 20 --severity high
+heimgeist insights --severity high
 
 # Pending Actions
-heimgeist actions --status pending
+heimgeist actions --pending
 
 # Einzelaktion genehmigen
 heimgeist approve <action-id>
 
 # Einzelaktion begründen
 heimgeist why <insight-id>
+
+# Analyse anfordern
+heimgeist analyse --target all --depth quick
 ```
 
-Diese Kommandos können zunächst nur auf lokale JSON-Dateien zugreifen und später
-um HTTP-API & UI erweitert werden.
+Diese Kommandos greifen auf die lokalen JSON-Dateien zu.
