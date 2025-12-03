@@ -15,7 +15,6 @@ import {
   ExplainRequest,
   ExplainResponse,
   RiskSeverity,
-  EventType,
   Epic,
   Incident,
   Pattern,
