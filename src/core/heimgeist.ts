@@ -6,6 +6,7 @@ import {
   HeimgeistRole,
   AutonomyLevel,
   ChronikEvent,
+  EventType,
   Insight,
   PlannedAction,
   AnalysisRequest,
@@ -176,7 +177,7 @@ export class Heimgeist {
     const insights: Insight[] = [];
 
     // Check for CI failures
-    if (event.type === 'ci.result' && event.payload?.status === 'failed') {
+    if (event.type === EventType.CIResult && event.payload?.status === 'failed') {
       const isMainBranch = event.payload.branch === 'main' || event.payload.ref === 'refs/heads/main';
       const severity = isMainBranch ? RiskSeverity.Critical : RiskSeverity.Medium;
       const title = isMainBranch ? 'Critical CI Failure on Main' : 'CI Build Failed';
@@ -189,11 +190,15 @@ export class Heimgeist {
         'Check for recent changes that might have caused the failure',
       ];
 
+      const context: Record<string, unknown> = { isMainBranch };
+
       if (isMainBranch) {
         recommendations.unshift('Immediately stop merging into main');
         recommendations.push('Run guard checks on affected areas');
+        context.code = 'ci_failure_main';
       } else {
         recommendations.push('Consider adding tests to prevent regression');
+        context.code = 'ci_failure_generic';
       }
 
       insights.push({
@@ -206,7 +211,7 @@ export class Heimgeist {
         description,
         source: event,
         recommendations,
-        context: { isMainBranch },
+        context,
       });
     }
 
@@ -428,7 +433,7 @@ export class Heimgeist {
     // Plan actions based on insight type
     if (insight.type === 'risk' && insight.severity === RiskSeverity.Critical) {
       // Specialized action plan for Critical CI Failure on Main
-      if (insight.title === 'Critical CI Failure on Main') {
+      if (insight.context?.code === 'ci_failure_main') {
         return {
           id: uuidv4(),
           timestamp: new Date(),

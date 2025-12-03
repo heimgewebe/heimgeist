@@ -51,6 +51,8 @@ Events aus `chronik` (Plexer):
 - `deploy.failed`
 - `incident.detected`
 
+Hinweis: Während diese Events bereits akzeptiert und persistiert werden, ist die spezialisierte Risikologik in v1 primär auf `ci.result` fokussiert.
+
 Später erweiterbar (nur referenziert, nicht notwendig für v1):
 
 - `pattern.bad` / `pattern.good`

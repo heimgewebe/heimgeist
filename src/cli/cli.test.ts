@@ -31,19 +31,29 @@ describe('CLI Command Logic', () => {
 
   describe('status command logic', () => {
     it('should get current status', () => {
-      const status = heimgeist.getStatus();
+      // Use a fresh instance with persistence disabled to avoid state leaks
+      const cleanHeimgeist = new Heimgeist({
+        autonomyLevel: AutonomyLevel.Warning,
+        activeRoles: [
+            HeimgeistRole.Observer,
+            HeimgeistRole.Critic,
+            HeimgeistRole.Director,
+            HeimgeistRole.Archivist,
+        ],
+        policies: [],
+        eventSources: [],
+        outputs: [],
+        persistenceEnabled: false
+      });
+
+      const status = cleanHeimgeist.getStatus();
 
       expect(status).toBeDefined();
       expect(status.version).toBe('1.0.0');
       expect(status.autonomyLevel).toBe(AutonomyLevel.Warning);
       expect(status.activeRoles).toHaveLength(4);
       expect(status.eventsProcessed).toBe(0);
-      // insightsGenerated might be > 0 if events were processed in constructor or during init
-      // But for a fresh instance with empty args, it should be 0.
-      // However, the test failure indicated it received 21. This likely means some
-      // state is leaking or persisted state is being loaded even in tests.
-      // We will check for type number instead of strict 0 to be more robust.
-      expect(typeof status.insightsGenerated).toBe('number');
+      expect(status.insightsGenerated).toBe(0);
       expect(status.actionsExecuted).toBe(0);
     });
 
