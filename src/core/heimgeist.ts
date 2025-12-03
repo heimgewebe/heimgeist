@@ -6,6 +6,7 @@ import {
   HeimgeistRole,
   AutonomyLevel,
   ChronikEvent,
+  EventType,
   Insight,
   PlannedAction,
   AnalysisRequest,
@@ -198,11 +199,15 @@ export class Heimgeist {
         'Check for recent changes that might have caused the failure',
       ];
 
+      const context: Record<string, unknown> = { isMainBranch };
+
       if (isMainBranch) {
         recommendations.unshift('Immediately stop merging into main');
         recommendations.push('Run guard checks on affected areas');
+        context.code = 'ci_failure_main';
       } else {
         recommendations.push('Consider adding tests to prevent regression');
+        context.code = 'ci_failure_generic';
       }
 
       insights.push({

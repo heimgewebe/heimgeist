@@ -32,7 +32,22 @@ describe('CLI Command Logic', () => {
 
   describe('status command logic', () => {
     it('should get current status', () => {
-      const status = heimgeist.getStatus();
+      // Use a fresh instance with persistence disabled to avoid state leaks
+      const cleanHeimgeist = new Heimgeist({
+        autonomyLevel: AutonomyLevel.Warning,
+        activeRoles: [
+            HeimgeistRole.Observer,
+            HeimgeistRole.Critic,
+            HeimgeistRole.Director,
+            HeimgeistRole.Archivist,
+        ],
+        policies: [],
+        eventSources: [],
+        outputs: [],
+        persistenceEnabled: false
+      });
+
+      const status = cleanHeimgeist.getStatus();
 
       expect(status).toBeDefined();
       expect(status.version).toBe('1.0.0');
