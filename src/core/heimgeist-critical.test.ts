@@ -29,7 +29,7 @@ describe('Heimgeist Critical Flows', () => {
     }, defaultLogger);
   });
 
-  test('should escalate CI failure on main to CRITICAL and propose wgx-guard', async () => {
+  it('should escalate CI failure on main to CRITICAL and propose wgx-guard', async () => {
     const event = {
       id: uuidv4(),
       type: EventType.CIResult,
@@ -62,7 +62,7 @@ describe('Heimgeist Critical Flows', () => {
     expect(criticalAction?.steps[1].tool).toBe('sichter-quick');
   });
 
-  test('should treat CI failure on other branches as MEDIUM', async () => {
+  it('should treat CI failure on other branches as MEDIUM', async () => {
     const event = {
       id: uuidv4(),
       type: EventType.CIResult,

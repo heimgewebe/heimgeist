@@ -14,7 +14,7 @@ describe('CLI Command Logic', () => {
   let heimgeist: Heimgeist;
 
   beforeEach(() => {
-    // Create a fresh instance for each test
+    // Create a fresh instance for each test with persistence disabled
     heimgeist = new Heimgeist({
       autonomyLevel: AutonomyLevel.Warning,
       activeRoles: [
@@ -26,6 +26,7 @@ describe('CLI Command Logic', () => {
       policies: [],
       eventSources: [],
       outputs: [],
+      persistenceEnabled: false,
     });
   });
 
@@ -38,12 +39,7 @@ describe('CLI Command Logic', () => {
       expect(status.autonomyLevel).toBe(AutonomyLevel.Warning);
       expect(status.activeRoles).toHaveLength(4);
       expect(status.eventsProcessed).toBe(0);
-      // insightsGenerated might be > 0 if events were processed in constructor or during init
-      // But for a fresh instance with empty args, it should be 0.
-      // However, the test failure indicated it received 21. This likely means some
-      // state is leaking or persisted state is being loaded even in tests.
-      // We will check for type number instead of strict 0 to be more robust.
-      expect(typeof status.insightsGenerated).toBe('number');
+      expect(status.insightsGenerated).toBe(0);
       expect(status.actionsExecuted).toBe(0);
     });
 

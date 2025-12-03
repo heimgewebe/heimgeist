@@ -14,6 +14,7 @@ import {
   ExplainRequest,
   ExplainResponse,
   RiskSeverity,
+  EventType,
   Epic,
   Incident,
   Pattern,
@@ -176,7 +177,7 @@ export class Heimgeist {
     const insights: Insight[] = [];
 
     // Check for CI failures
-    if (event.type === 'ci.result' && event.payload?.status === 'failed') {
+    if (event.type === EventType.CIResult && event.payload?.status === 'failed') {
       const isMainBranch = event.payload.branch === 'main' || event.payload.ref === 'refs/heads/main';
       const severity = isMainBranch ? RiskSeverity.Critical : RiskSeverity.Medium;
       const title = isMainBranch ? 'Critical CI Failure on Main' : 'CI Build Failed';
@@ -206,12 +207,15 @@ export class Heimgeist {
         description,
         source: event,
         recommendations,
-        context: { isMainBranch },
+        context: { 
+          isMainBranch,
+          code: isMainBranch ? 'ci_failure_main' : 'ci_failure_generic'
+        },
       });
     }
 
     // Check for deploy failures
-    if (event.type === 'deploy.failed') {
+    if (event.type === EventType.DeployFailed) {
       insights.push({
         id: uuidv4(),
         timestamp: new Date(),
@@ -230,7 +234,7 @@ export class Heimgeist {
     }
 
     // Check for incident detection
-    if (event.type === 'incident.detected') {
+    if (event.type === EventType.IncidentDetected) {
       // Track incident
       const incidentId =
         (event.payload.incident_id as string | undefined) || `incident-${uuidv4()}`;
@@ -263,7 +267,7 @@ export class Heimgeist {
     }
 
     // Check for Epic events
-    if (event.type === 'epic.linked') {
+    if (event.type === EventType.EpicLinked) {
       const epicId = event.payload.epic_id as string;
       this.epics.set(epicId, {
         id: epicId,
@@ -288,9 +292,9 @@ export class Heimgeist {
     }
 
     // Check for Pattern events
-    if (event.type === 'pattern.bad' || event.type === 'pattern.good') {
+    if (event.type === EventType.PatternBad || event.type === EventType.PatternGood) {
       const patternId = `pattern-${uuidv4()}`;
-      const patternType: 'good' | 'bad' = event.type === 'pattern.good' ? 'good' : 'bad';
+      const patternType: 'good' | 'bad' = event.type === EventType.PatternGood ? 'good' : 'bad';
 
       this.patterns.set(patternId, {
         id: patternId,
@@ -323,7 +327,7 @@ export class Heimgeist {
     }
 
     // Check for Command events
-    if (event.type === 'heimgewebe.command.v1') {
+    if (event.type === EventType.Command) {
       // payload should be partial or full HeimgewebeCommand
       // We assume it's pre-parsed, but we can also use CommandParser.validateCommand to be sure
       const command = event.payload as unknown as HeimgewebeCommand;
@@ -428,7 +432,7 @@ export class Heimgeist {
     // Plan actions based on insight type
     if (insight.type === 'risk' && insight.severity === RiskSeverity.Critical) {
       // Specialized action plan for Critical CI Failure on Main
-      if (insight.title === 'Critical CI Failure on Main') {
+      if (insight.context?.code === 'ci_failure_main') {
         return {
           id: uuidv4(),
           timestamp: new Date(),
