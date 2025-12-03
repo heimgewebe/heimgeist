@@ -14,7 +14,7 @@ describe('CLI Command Logic', () => {
   let heimgeist: Heimgeist;
 
   beforeEach(() => {
-    // Create a fresh instance for each test
+    // Create a fresh instance for each test with persistence disabled
     heimgeist = new Heimgeist({
       autonomyLevel: AutonomyLevel.Warning,
       activeRoles: [
@@ -26,6 +26,7 @@ describe('CLI Command Logic', () => {
       policies: [],
       eventSources: [],
       outputs: [],
+      persistenceEnabled: false,
     });
   });
 
