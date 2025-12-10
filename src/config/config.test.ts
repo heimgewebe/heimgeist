@@ -20,6 +20,7 @@ describe('config', () => {
       expect(config.activeRoles).toContain(HeimgeistRole.Director);
       expect(config.activeRoles).toContain(HeimgeistRole.Archivist);
       expect(config.policies.length).toBeGreaterThan(0);
+      expect(config.persistenceEnabled).toBe(true);
     });
   });
 
@@ -41,12 +42,14 @@ autonomyLevel: 3
 activeRoles:
   - observer
   - critic
+persistenceEnabled: false
 `);
 
       const config = loadConfig('/some/path');
 
       expect(config.autonomyLevel).toBe(3);
       expect(config.activeRoles).toEqual(['observer', 'critic']);
+      expect(config.persistenceEnabled).toBe(false);
     });
 
     it('should fallback to default on parse error', () => {

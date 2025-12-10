@@ -106,6 +106,11 @@ function mergeConfig(
       override.eventSources !== undefined ? override.eventSources : defaults.eventSources,
     // Replace outputs completely if provided (don't merge with defaults)
     outputs: override.outputs !== undefined ? override.outputs : defaults.outputs,
+    // Respect persistence toggle from override while defaulting to provided value
+    persistenceEnabled:
+      override.persistenceEnabled !== undefined
+        ? override.persistenceEnabled
+        : defaults.persistenceEnabled,
   };
 }
 
@@ -119,6 +124,7 @@ export function getDefaultConfig(): HeimgeistConfig {
     policies: DEFAULT_CONFIG.policies.map((p) => ({ ...p })),
     eventSources: DEFAULT_CONFIG.eventSources.map((e) => ({ ...e })),
     outputs: DEFAULT_CONFIG.outputs.map((o) => ({ ...o })),
+    persistenceEnabled: DEFAULT_CONFIG.persistenceEnabled,
   };
 }
 
