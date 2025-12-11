@@ -89,17 +89,11 @@ export class HeimgeistCoreLoop {
 
         // In a real system, we would execute the tool steps here.
         // For simulation, we mark it as executed.
-        // We need a way to mark as executed. Using a cast for now as internal property access or add method.
-        // Since we don't have executeAction, we'll manually update the status on the object
-        // and rely on persistence to save it on next tick/event or manually save.
-        // But plannedActions is a Map reference, so modifying the object works,
-        // we just need to trigger persistence.
+        const success = await this.heimgeist.executeAction(action.id);
 
-        action.status = 'executed';
-        action.steps.forEach(s => s.status = 'completed');
-
-        // Persist the updated action immediately
-        await this.heimgeist.saveAction(action);
+        if (!success) {
+            this.logger.warn(`Failed to execute action ${action.id}`);
+        }
     }
   }
 }

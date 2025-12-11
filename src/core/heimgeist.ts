@@ -846,6 +846,33 @@ export class Heimgeist {
   }
 
   /**
+   * Mark an action as executed and update its steps to completed.
+   * This is used when the Director decides an action has been or is being performed.
+   */
+  public async executeAction(actionId: string): Promise<boolean> {
+    const action = this.plannedActions.get(actionId);
+    if (!action) return false;
+
+    // Only allow execution if status is approved or if it's pending and doesn't require confirmation
+    // Note: The caller (Director/Loop) should ideally check policy before calling this,
+    // but we enforce the state transition rules here.
+    const canExecute =
+      action.status === 'approved' ||
+      (action.status === 'pending' && !action.requiresConfirmation);
+
+    if (!canExecute) return false;
+
+    action.status = 'executed';
+    action.steps.forEach((step) => {
+      step.status = 'completed';
+    });
+    this.actionsExecuted++;
+
+    await this.saveAction(action);
+    return true;
+  }
+
+  /**
    * Get current configuration
    */
   getConfig(): HeimgeistConfig {
