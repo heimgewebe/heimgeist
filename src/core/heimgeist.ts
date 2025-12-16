@@ -656,6 +656,30 @@ export class Heimgeist {
       return true;
     });
 
+    // Gather existing relevant insights
+    const relevantInsights = Array.from(this.insights.values()).filter((insight) => {
+      // Filter by role focus
+      if (request.focus && !request.focus.includes(insight.role)) return false;
+
+      // Filter by target (if insight has a source)
+      if (request.target) {
+        if (insight.source && insight.source.source !== request.target) return false;
+        // If insight has no source, we exclude it when targeting a specific source
+        if (!insight.source) return false;
+      }
+
+      // Filter by scope (event types)
+      if (request.scope) {
+        if (insight.source && !request.scope.includes(insight.source.type)) return false;
+        // If scope is specified but insight has no source/type, exclude it
+        if (!insight.source) return false;
+      }
+
+      return true;
+    });
+
+    resultInsights.push(...relevantInsights);
+
     // Generate summary insight
     const summaryInsight: Insight = {
       id: uuidv4(),
@@ -664,7 +688,7 @@ export class Heimgeist {
       type: 'suggestion',
       severity: RiskSeverity.Low,
       title: 'Analysis Summary',
-      description: `Analyzed ${eventsToAnalyze.length} events. ${this.insights.size} insights currently tracked.`,
+      description: `Analyzed ${eventsToAnalyze.length} events. Found ${relevantInsights.length} relevant insights.`,
     };
 
     resultInsights.push(summaryInsight);
@@ -673,9 +697,27 @@ export class Heimgeist {
 
     // Include relevant planned actions
     for (const action of this.plannedActions.values()) {
-      if (action.status === 'pending' || action.status === 'approved') {
-        resultActions.push(action);
+      if (action.status !== 'pending' && action.status !== 'approved') continue;
+
+      // Check if action trigger matches criteria
+      const trigger = action.trigger;
+
+      // Filter by target
+      if (request.target) {
+        if (trigger.source && trigger.source.source !== request.target) continue;
+        if (!trigger.source) continue;
       }
+
+      // Filter by focus (trigger role)
+      if (request.focus && !request.focus.includes(trigger.role)) continue;
+
+      // Filter by scope
+      if (request.scope) {
+        if (trigger.source && !request.scope.includes(trigger.source.type)) continue;
+        if (!trigger.source) continue;
+      }
+
+      resultActions.push(action);
     }
 
     return {
