@@ -1,0 +1,68 @@
+name: heimgeist.sichter.kohärenz
+
+on:
+  workflow_dispatch:
+    inputs:
+      repolens_json_path:
+        description: "Pfad zu einem repoLens JSON Snapshot (im Repo-Workspace, z.B. merges/foo.json)"
+        required: true
+        type: string
+      out_dir:
+        description: "Ausgabeordner für Reports"
+        required: false
+        default: "reports/heimgeist.sichter"
+        type: string
+      fail_on:
+        description: "Workflow failen bei Severity >= (none|warn|crit)"
+        required: false
+        default: "crit"
+        type: string
+      commit_report:
+        description: "Report committen & pushen (ACHTUNG: schreibt ins Repo)"
+        required: false
+        default: "false"
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  sichter:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Run heimgeist.sichter.kohärenz (repoLens)
+        run: |
+          set -euo pipefail
+          python3 scripts/heimgeist_sichter_kohaerenz.py \
+            "${{ inputs.repolens_json_path }}" \
+            --out "${{ inputs.out_dir }}" \
+            --json \
+            --fail-on "${{ inputs.fail_on }}"
+
+      - name: Upload report artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: heimgeist-sichter-kohaerenz-report
+          path: ${{ inputs.out_dir }}
+
+      - name: Commit report (optional)
+        if: ${{ inputs.commit_report == 'true' }}
+        run: |
+          set -euo pipefail
+          if git status --porcelain | grep -q .; then
+            git config user.name "heimgeist-sichter"
+            git config user.email "heimgeist-sichter@users.noreply.github.com"
+            git add "${{ inputs.out_dir }}"
+            git commit -m "reports: add heimgeist.sichter.kohärenz output"
+            git push
+          else
+            echo "No changes."
+          fi
