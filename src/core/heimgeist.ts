@@ -870,6 +870,7 @@ export class Heimgeist {
     const action = this.plannedActions.get(actionId);
     if (action && action.status === 'pending') {
       action.status = 'approved';
+      void this.saveAction(action);
       return true;
     }
     return false;
@@ -882,6 +883,7 @@ export class Heimgeist {
     const action = this.plannedActions.get(actionId);
     if (action && action.status === 'pending') {
       action.status = 'rejected';
+      void this.saveAction(action);
       return true;
     }
     return false;
