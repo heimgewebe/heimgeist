@@ -1,8 +1,79 @@
-# Dieses Repo IST Heimgeist.
-# Für systemweite Policies siehe:
-#   metarepo/ai-contexts/heimgeist.ai-context.yml
-#
-# Lokale Identität:
-# Heimgeist denkt, bewertet, reflektiert und orchestriert systemweit.
-#
-extends: "../metarepo/ai-contexts/heimgeist.ai-context.yml"
+---
+ai_context_version: 1.1
+
+project:
+  name: heimgeist
+  summary: "System Self-Reflection Engine that thinks, evaluates, reflects, and orchestrates system-wide."
+  role: reflection_engine
+  primary_language: typescript
+  visibility: internal
+
+heimgewebe:
+  axis:
+    - Events
+    - Semantik
+    - Decisions
+    - Learning
+  fleet:
+    enabled: true
+  wgx:
+    profile_expected: false
+    guard_smoke_expected: false
+
+interfaces:
+  consumes:
+    - "heimgewebe.command.v1"
+    - "events.plexer"
+  produces:
+    - "insights.*"
+    - "actions.*"
+
+contracts:
+  schemas:
+    - path: "src/types/index.ts"
+      note: "Internal type definitions match event schemas."
+
+dependencies:
+  internal:
+    - name: metarepo
+      relationship: uses
+      interface: [docs, contracts]
+  external:
+    - name: node
+      version: ">=20"
+
+architecture:
+  entrypoints:
+    - "src/cli/index.ts"
+  key_paths:
+    - path: "src/core/"
+      purpose: "Core Loop and logic"
+  data_flow:
+    input: "Events from Plexer / Commands via Comments"
+    processing: "Heimgeist Core Loop (Observer -> Critic -> Director -> Archivist)"
+    output: "Insights and PlannedActions"
+
+boundaries:
+  not_responsible_for:
+    - "Directly executing low-level deployment tasks (delegates to WGX)."
+    - "Ingesting raw network traffic (relies on Plexer)."
+  dangerous_assumptions:
+    - "Assuming disk persistence is always available in all environments."
+
+conventions:
+  branching: "main, feature/*"
+  commit_prefix: "HEIMGEWEBE"
+  ci_platform: github_actions
+
+documentation:
+  runbook: docs/heimgeist-core-loop.md
+
+ai_guidance:
+  do:
+    - "Respect the separation of Observer, Critic, Director, and Archivist roles."
+    - "Ensure all state changes are persisted via saveAction."
+    - "Use the defined EventType enums."
+  dont:
+    - "Bypass the Core Loop for logic execution."
+    - "Mutate config objects directly."
+    - "Introduce circular dependencies between core modules."
