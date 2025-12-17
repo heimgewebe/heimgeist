@@ -62,17 +62,15 @@ export class HeimgeistCoreLoop {
       EventType.IncidentDetected,
     ]);
 
-    if (!event) {
-      return;
+    if (event) {
+      this.logger.log(`Processing event: ${event.type} (${event.id})`);
+
+      // 2. Delegate processing to Heimgeist Core
+      // This handles Context, Risk Assessment, Insights, Actions, and Persistence
+      const insights = await this.heimgeist.processEvent(event);
+
+      this.logger.log(`Generated ${insights.length} insights from event.`);
     }
-
-    this.logger.log(`Processing event: ${event.type} (${event.id})`);
-
-    // 2. Delegate processing to Heimgeist Core
-    // This handles Context, Risk Assessment, Insights, Actions, and Persistence
-    const insights = await this.heimgeist.processEvent(event);
-
-    this.logger.log(`Generated ${insights.length} insights from event.`);
 
     // 3. Check for auto-execution of actions
     // In a real implementation, we might want to have a separate "Actuator" loop,
