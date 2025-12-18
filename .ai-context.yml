@@ -14,10 +14,11 @@ heimgewebe:
     - Semantik
     - Decisions
     - Learning
+    - OS-Context
   fleet:
     enabled: true
   wgx:
-    profile_expected: false
+    profile_expected: true
     guard_smoke_expected: false
 
 interfaces:
@@ -31,7 +32,7 @@ interfaces:
 contracts:
   schemas:
     - path: "src/types/index.ts"
-      note: "Internal type definitions match event schemas."
+      note: "TypeScript source acting as contract definition (no formal JSON schemas yet)."
 
 dependencies:
   internal:
