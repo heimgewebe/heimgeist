@@ -127,6 +127,7 @@ describe('Heimgeist', () => {
       const deployInsight = insights.find((i) => i.title === 'Deployment Failed');
       expect(deployInsight).toBeDefined();
       expect(deployInsight?.severity).toBe(RiskSeverity.High);
+      expect(deployInsight?.context?.code).toBe('deploy_failed');
     });
 
     it('should process incident detection events', async () => {
@@ -294,6 +295,24 @@ describe('Heimgeist', () => {
       expect(actions.length).toBeGreaterThan(0);
       expect(actions[0].requiresConfirmation).toBe(true);
       expect(actions[0].status).toBe('pending');
+    });
+
+    it('should plan actions for deployment failures (high risk)', async () => {
+      const event: ChronikEvent = {
+        id: 'test-deploy-fail',
+        type: EventType.DeployFailed,
+        timestamp: new Date(),
+        source: 'k8s',
+        payload: {},
+      };
+
+      await heimgeist.processEvent(event);
+      const actions = heimgeist.getPlannedActions();
+
+      expect(actions.length).toBeGreaterThan(0);
+      const deployAction = actions.find(a => a.trigger.context?.code === 'deploy_failed');
+      expect(deployAction).toBeDefined();
+      expect(deployAction?.steps.some(s => s.tool === 'notify-slack')).toBe(true);
     });
 
     it('should approve pending actions', async () => {

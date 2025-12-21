@@ -31,6 +31,7 @@ import { CommandParser } from './command-parser';
 const INSIGHT_CODE = {
   CI_FAILURE_MAIN: 'ci_failure_main',
   CI_FAILURE_GENERIC: 'ci_failure_generic',
+  DEPLOY_FAILED: 'deploy_failed',
 } as const;
 
 /**
@@ -242,6 +243,9 @@ export class Heimgeist {
           'Consider rollback if necessary',
           'Notify the team',
         ],
+        context: {
+            code: INSIGHT_CODE.DEPLOY_FAILED
+        }
       });
     }
 
@@ -513,7 +517,7 @@ export class Heimgeist {
     // Handle High Severity risks (e.g., DeployFailed)
     if (insight.type === 'risk' && insight.severity === RiskSeverity.High) {
       // Specialized action for DeployFailed
-      if (insight.title === 'Deployment Failed') {
+      if (insight.context?.code === INSIGHT_CODE.DEPLOY_FAILED) {
         return {
           id: uuidv4(),
           timestamp: new Date(),
@@ -522,7 +526,7 @@ export class Heimgeist {
             {
               order: 1,
               tool: 'sichter-quick',
-              parameters: { target: insight.source?.source, context: 'deploy-failure' },
+              parameters: { target: insight.source?.source || 'unknown', context: 'deploy-failure' },
               description: 'Analyze deployment failure logs',
               status: 'pending',
             },
@@ -534,8 +538,8 @@ export class Heimgeist {
               status: 'pending',
             }
           ],
-          requiresConfirmation,
-          status: requiresConfirmation ? 'pending' : 'approved',
+          requiresConfirmation: true, // High severity actions must always be confirmed
+          status: 'pending',
         };
       }
 
@@ -548,7 +552,7 @@ export class Heimgeist {
             {
               order: 1,
               tool: 'sichter-quick',
-              parameters: { target: insight.source?.source },
+              parameters: { target: insight.source?.source || 'unknown' },
               description: 'Analyze issue context',
               status: 'pending',
             },
@@ -560,8 +564,8 @@ export class Heimgeist {
               status: 'pending',
             }
           ],
-          requiresConfirmation,
-          status: requiresConfirmation ? 'pending' : 'approved',
+          requiresConfirmation: true, // High severity actions must always be confirmed
+          status: 'pending',
       };
     }
 
