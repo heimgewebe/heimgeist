@@ -510,6 +510,61 @@ export class Heimgeist {
       };
     }
 
+    // Handle High Severity risks (e.g., DeployFailed)
+    if (insight.type === 'risk' && insight.severity === RiskSeverity.High) {
+      // Specialized action for DeployFailed
+      if (insight.title === 'Deployment Failed') {
+        return {
+          id: uuidv4(),
+          timestamp: new Date(),
+          trigger: insight,
+          steps: [
+            {
+              order: 1,
+              tool: 'sichter-quick',
+              parameters: { target: insight.source?.source, context: 'deploy-failure' },
+              description: 'Analyze deployment failure logs',
+              status: 'pending',
+            },
+            {
+              order: 2,
+              tool: 'notify-slack',
+              parameters: { channel: 'ops', message: 'Deployment failed, investigation started' },
+              description: 'Notify operations team',
+              status: 'pending',
+            }
+          ],
+          requiresConfirmation,
+          status: requiresConfirmation ? 'pending' : 'approved',
+        };
+      }
+
+      // Default High severity action
+      return {
+          id: uuidv4(),
+          timestamp: new Date(),
+          trigger: insight,
+          steps: [
+            {
+              order: 1,
+              tool: 'sichter-quick',
+              parameters: { target: insight.source?.source },
+              description: 'Analyze issue context',
+              status: 'pending',
+            },
+            {
+              order: 2,
+              tool: 'report-generate',
+              parameters: { format: 'markdown', include: ['insights'] },
+              description: 'Generate issue report',
+              status: 'pending',
+            }
+          ],
+          requiresConfirmation,
+          status: requiresConfirmation ? 'pending' : 'approved',
+      };
+    }
+
     // Handle Command insights
     if (insight.type === 'suggestion' && insight.title.startsWith('Command Received:')) {
       const command = insight.context?.command as HeimgewebeCommand;
