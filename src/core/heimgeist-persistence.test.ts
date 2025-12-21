@@ -1,5 +1,5 @@
 import { Heimgeist, createHeimgeist } from './heimgeist';
-import { AutonomyLevel, HeimgeistRole, RiskSeverity, EventType, ChronikEvent } from '../types';
+import { AutonomyLevel, HeimgeistRole, EventType, ChronikEvent } from '../types';
 import * as fs from 'fs';
 import { Logger } from './logger';
 
@@ -70,10 +70,12 @@ describe('Heimgeist Persistence', () => {
 
         // Verify the content being written has status 'approved'
         const writeCalls = (fs.writeFileSync as jest.Mock).mock.calls;
-        const actionWrite = writeCalls.find((call: any[]) => call[0].includes(actionId));
+        const actionWrite = writeCalls.find((call: unknown[]) =>
+            typeof call[0] === 'string' && call[0].includes(actionId)
+        );
         expect(actionWrite).toBeDefined();
         if (actionWrite) {
-            const savedAction = JSON.parse(actionWrite[1]);
+            const savedAction = JSON.parse(actionWrite[1] as string);
             expect(savedAction.status).toBe('approved');
         }
     }
@@ -104,10 +106,12 @@ describe('Heimgeist Persistence', () => {
         expect(fs.writeFileSync).toHaveBeenCalled();
 
         const writeCalls = (fs.writeFileSync as jest.Mock).mock.calls;
-        const actionWrite = writeCalls.find((call: any[]) => call[0].includes(actionId));
+        const actionWrite = writeCalls.find((call: unknown[]) =>
+            typeof call[0] === 'string' && call[0].includes(actionId)
+        );
         expect(actionWrite).toBeDefined();
         if (actionWrite) {
-            const savedAction = JSON.parse(actionWrite[1]);
+            const savedAction = JSON.parse(actionWrite[1] as string);
             expect(savedAction.status).toBe('rejected');
         }
     }

@@ -31,6 +31,7 @@ import { CommandParser } from './command-parser';
 const INSIGHT_CODE = {
   CI_FAILURE_MAIN: 'ci_failure_main',
   CI_FAILURE_GENERIC: 'ci_failure_generic',
+  DEPLOY_FAILED: 'deploy_failed',
 } as const;
 
 /**
@@ -242,6 +243,9 @@ export class Heimgeist {
           'Consider rollback if necessary',
           'Notify the team',
         ],
+        context: {
+            code: INSIGHT_CODE.DEPLOY_FAILED
+        }
       });
     }
 
@@ -507,6 +511,61 @@ export class Heimgeist {
         ],
         requiresConfirmation,
         status: requiresConfirmation ? 'pending' : 'approved',
+      };
+    }
+
+    // Handle High Severity risks (e.g., DeployFailed)
+    if (insight.type === 'risk' && insight.severity === RiskSeverity.High) {
+      // Specialized action for DeployFailed
+      if (insight.context?.code === INSIGHT_CODE.DEPLOY_FAILED) {
+        return {
+          id: uuidv4(),
+          timestamp: new Date(),
+          trigger: insight,
+          steps: [
+            {
+              order: 1,
+              tool: 'sichter-quick',
+              parameters: { target: insight.source?.source || 'unknown', context: 'deploy-failure' },
+              description: 'Analyze deployment failure logs',
+              status: 'pending',
+            },
+            {
+              order: 2,
+              tool: 'notify-slack',
+              parameters: { channel: 'ops', message: 'Deployment failed, investigation started' },
+              description: 'Notify operations team',
+              status: 'pending',
+            }
+          ],
+          requiresConfirmation: true, // High severity actions must always be confirmed
+          status: 'pending',
+        };
+      }
+
+      // Default High severity action
+      return {
+          id: uuidv4(),
+          timestamp: new Date(),
+          trigger: insight,
+          steps: [
+            {
+              order: 1,
+              tool: 'sichter-quick',
+              parameters: { target: insight.source?.source || 'unknown' },
+              description: 'Analyze issue context',
+              status: 'pending',
+            },
+            {
+              order: 2,
+              tool: 'report-generate',
+              parameters: { format: 'markdown', include: ['insights'] },
+              description: 'Generate issue report',
+              status: 'pending',
+            }
+          ],
+          requiresConfirmation: true, // High severity actions must always be confirmed
+          status: 'pending',
       };
     }
 
