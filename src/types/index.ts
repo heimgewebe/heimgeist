@@ -348,7 +348,7 @@ export interface GuardCheck {
  */
 export interface ChronikClient {
   nextEvent(types: string[]): Promise<ChronikEvent | null>;
-  append(event: Partial<ChronikEvent>): Promise<void>;
+  append(event: ChronikEvent): Promise<void>;
 }
 
 /**
@@ -360,7 +360,7 @@ export interface HeimgeistInsightChronikPayload {
   data: Insight;
   meta: {
     role: HeimgeistRole;
-    occurred_at: Date;
+    occurred_at: string; // ISO 8601
     schema_version: string;
   };
 }

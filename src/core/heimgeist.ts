@@ -710,19 +710,17 @@ export class Heimgeist {
                   const payload: HeimgeistInsightChronikPayload = {
                     kind: 'heimgeist.insight',
                     version: '1.0',
-                    data: insight,
+                    data: this.sanitizePayload(insight),
                     meta: {
                       role: insight.role,
-                      occurred_at: insight.timestamp,
-                      schema_version: '1.0.0'
+                      occurred_at: insight.timestamp.toISOString(),
+                      schema_version: '1.0.0',
                     },
                   };
 
                   // Deterministic ID for idempotency (same insight = same event)
-                  const eventId = `evt-${insight.id}`;
-
-                  // Note: In a real implementation we would sanitize the payload here
-                  // For now, we rely on the Insight structure being generally safe
+                  const safeId = this.sanitizeId(insight.id || uuidv4());
+                  const eventId = `evt-${safeId}`;
 
                   return this.chronik!.append({
                     id: eventId,
@@ -1122,6 +1120,22 @@ export class Heimgeist {
    */
   getPatternsByType(type: 'good' | 'bad'): Pattern[] {
     return Array.from(this.patterns.values()).filter((p) => p.type === type);
+  }
+
+  /**
+   * Sanitize an ID to ensure it is safe for the backbone
+   */
+  private sanitizeId(id: string): string {
+    return id.replace(/[^a-zA-Z0-9-_]/g, '_');
+  }
+
+  /**
+   * Sanitize payload (stub for redaction/PII filtering)
+   */
+  private sanitizePayload(data: unknown): any {
+    // In a full implementation, this would recurse and redact sensitive keys
+    // For now, we return as-is, but the hook is established.
+    return data;
   }
 }
 
