@@ -690,17 +690,43 @@ export class Heimgeist {
           }
           break;
         case 'chronik':
-          // Would send to chronik event store
+          // Send to chronik event store with architectural rigor
           if (this.chronik) {
-            for (const insight of insights) {
-              // Create a wrapper event for the insight
-              await this.chronik.append({
-                id: uuidv4(),
-                type: EventType.HeimgeistInsight,
-                timestamp: new Date(),
-                source: 'heimgeist',
-                payload: insight as unknown as Record<string, unknown>,
-              });
+            // Use allSettled for parallel execution and error containment
+            const results = await Promise.allSettled(
+              insights.map((insight) => {
+                // Construct a contract-conformant payload
+                const payload = {
+                  kind: 'heimgeist.insight',
+                  version: '1.0',
+                  data: insight,
+                  meta: {
+                    role: insight.role,
+                    occurred_at: insight.timestamp,
+                  },
+                };
+
+                // Deterministic ID for idempotency (same insight = same event)
+                const eventId = `evt-${insight.id}`;
+
+                return this.chronik!.append({
+                  id: eventId,
+                  type: EventType.HeimgeistInsight,
+                  timestamp: new Date(), // Ingest time
+                  source: 'heimgeist',
+                  payload: payload as unknown as Record<string, unknown>,
+                });
+              })
+            );
+
+            // Log failures if any
+            const rejected = results.filter((r) => r.status === 'rejected');
+            if (rejected.length > 0) {
+              this.logger.error(
+                `Failed to archive ${rejected.length} insights to Chronik. First error: ${
+                  (rejected[0] as PromiseRejectedResult).reason
+                }`
+              );
             }
           }
           break;
