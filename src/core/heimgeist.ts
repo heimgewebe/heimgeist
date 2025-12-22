@@ -1,6 +1,7 @@
 import { v4 as uuidv4 } from 'uuid';
 import * as fs from 'fs';
 import * as path from 'path';
+import * as crypto from 'crypto';
 import {
   HeimgeistConfig,
   HeimgeistRole,
@@ -707,6 +708,14 @@ export class Heimgeist {
               const chunkResults = await Promise.allSettled(
                 chunk.map((insight) => {
                   // Construct a contract-conformant payload
+                  // Deterministic ID for idempotency (same insight = same event)
+                  const safeId = this.sanitizeId(insight.id || uuidv4());
+                  const eventId = `evt-${safeId}`;
+
+                  // Generate stable idempotency key based on content
+                  const idempotencyKey = this.generateIdempotencyKey(insight);
+
+                  // Construct a contract-conformant payload
                   const payload: HeimgeistInsightChronikPayload = {
                     kind: 'heimgeist.insight',
                     version: '1.0',
@@ -715,12 +724,12 @@ export class Heimgeist {
                       role: insight.role,
                       occurred_at: insight.timestamp.toISOString(),
                       schema_version: '1.0.0',
+                      idempotency_key: idempotencyKey,
                     },
                   };
 
-                  // Deterministic ID for idempotency (same insight = same event)
-                  const safeId = this.sanitizeId(insight.id || uuidv4());
-                  const eventId = `evt-${safeId}`;
+                  // Runtime validation to ensure contract adherence
+                  this.validatePayload(payload);
 
                   return this.chronik!.append({
                     id: eventId,
@@ -1130,12 +1139,66 @@ export class Heimgeist {
   }
 
   /**
-   * Sanitize payload (stub for redaction/PII filtering)
+   * Sanitize payload recursively to redact sensitive keys
    */
   private sanitizePayload(data: unknown): any {
-    // In a full implementation, this would recurse and redact sensitive keys
-    // For now, we return as-is, but the hook is established.
+    if (!data) return data;
+
+    if (Array.isArray(data)) {
+      return data.map((item) => this.sanitizePayload(item));
+    }
+
+    if (typeof data === 'object') {
+      const result: Record<string, unknown> = {};
+      const sensitiveKeys = ['token', 'secret', 'password', 'auth', 'key', 'credential'];
+
+      for (const [key, value] of Object.entries(data as Record<string, unknown>)) {
+        if (sensitiveKeys.some((s) => key.toLowerCase().includes(s))) {
+          result[key] = '[REDACTED]';
+        } else {
+          result[key] = this.sanitizePayload(value);
+        }
+      }
+      return result;
+    }
+
     return data;
+  }
+
+  /**
+   * Generate a stable idempotency key from insight content
+   */
+  private generateIdempotencyKey(insight: Insight): string {
+    const hash = crypto.createHash('sha256');
+    // We mix stable fields to form a unique fingerprint
+    hash.update(insight.role);
+    hash.update(insight.timestamp.toISOString());
+    hash.update(insight.title);
+    hash.update(insight.description);
+    return hash.digest('hex');
+  }
+
+  /**
+   * Validate the payload against the schema contract
+   * Throws if invalid
+   */
+  private validatePayload(payload: HeimgeistInsightChronikPayload): void {
+    if (payload.kind !== 'heimgeist.insight') {
+      throw new Error(`Invalid payload kind: ${payload.kind}`);
+    }
+    if (!payload.version) {
+      throw new Error('Payload version is missing');
+    }
+    if (!payload.data) {
+      throw new Error('Payload data is missing');
+    }
+    if (!payload.meta || !payload.meta.occurred_at || !payload.meta.role) {
+      throw new Error('Payload meta is incomplete');
+    }
+    // Check Date format (basic ISO check)
+    if (isNaN(Date.parse(payload.meta.occurred_at))) {
+      throw new Error('occurred_at is not a valid ISO date string');
+    }
   }
 }
 
