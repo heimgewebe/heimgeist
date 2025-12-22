@@ -6,6 +6,7 @@ import {
   HeimgeistRole,
   AutonomyLevel,
   ChronikEvent,
+  ChronikClient,
   EventType,
   Insight,
   PlannedAction,
@@ -54,12 +55,14 @@ export class Heimgeist {
   private actionsExecuted = 0;
   private lastActivity?: Date;
   private logger: Logger;
+  private chronik?: ChronikClient;
 
-  constructor(config?: HeimgeistConfig, logger: Logger = defaultLogger) {
+  constructor(config?: HeimgeistConfig, logger: Logger = defaultLogger, chronik?: ChronikClient) {
     // console.log('Heimgeist constructor config:', config);
     this.config = config || loadConfig();
     // console.log('Heimgeist effective config:', this.config);
     this.logger = logger;
+    this.chronik = chronik;
     this.startTime = new Date();
 
     if (this.config.persistenceEnabled !== false) {
@@ -688,6 +691,18 @@ export class Heimgeist {
           break;
         case 'chronik':
           // Would send to chronik event store
+          if (this.chronik) {
+            for (const insight of insights) {
+              // Create a wrapper event for the insight
+              await this.chronik.append({
+                id: uuidv4(),
+                type: EventType.HeimgeistInsight,
+                timestamp: new Date(),
+                source: 'heimgeist',
+                payload: insight as unknown as Record<string, unknown>,
+              });
+            }
+          }
           break;
         case 'semantah':
           // Would update semantic graph
@@ -1062,6 +1077,6 @@ export class Heimgeist {
 /**
  * Create a new Heimgeist instance with default configuration
  */
-export function createHeimgeist(config?: HeimgeistConfig, logger?: Logger): Heimgeist {
-  return new Heimgeist(config, logger);
+export function createHeimgeist(config?: HeimgeistConfig, logger?: Logger, chronik?: ChronikClient): Heimgeist {
+  return new Heimgeist(config, logger, chronik);
 }
