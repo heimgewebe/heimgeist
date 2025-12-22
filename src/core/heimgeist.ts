@@ -20,6 +20,8 @@ import {
   Incident,
   Pattern,
   HeimgewebeCommand,
+  HeimgeistInsightChronikPayload,
+  ArchiveResult,
 } from '../types';
 import { loadConfig, getAutonomyLevelName } from '../config';
 import { STATE_DIR, INSIGHTS_DIR, ACTIONS_DIR } from '../config/state-paths';
@@ -176,7 +178,10 @@ export class Heimgeist {
 
     // Archivist role: persist insights
     if (this.config.activeRoles.includes(HeimgeistRole.Archivist)) {
-      await this.archive(newInsights);
+      const archiveResult = await this.archive(newInsights);
+      if (archiveResult.failed > 0) {
+        this.logger.warn(`Archivist: ${archiveResult.success} persisted, ${archiveResult.failed} failed.`);
+      }
     }
 
     return newInsights;
@@ -638,7 +643,9 @@ export class Heimgeist {
   /**
    * Archivist role: Persist insights to various outputs
    */
-  private async archive(insights: Insight[]): Promise<void> {
+  private async archive(insights: Insight[]): Promise<ArchiveResult> {
+    const result: ArchiveResult = { success: 0, failed: 0, errors: [] };
+
     // File persistence
     if (this.config.persistenceEnabled !== false) {
         // Ensure state directories exist
@@ -692,40 +699,56 @@ export class Heimgeist {
         case 'chronik':
           // Send to chronik event store with architectural rigor
           if (this.chronik) {
-            // Use allSettled for parallel execution and error containment
-            const results = await Promise.allSettled(
-              insights.map((insight) => {
-                // Construct a contract-conformant payload
-                const payload = {
-                  kind: 'heimgeist.insight',
-                  version: '1.0',
-                  data: insight,
-                  meta: {
-                    role: insight.role,
-                    occurred_at: insight.timestamp,
-                  },
-                };
+            // Concurrency Control: Process in chunks to avoid overloading the backbone
+            const CHUNK_SIZE = 5;
+            for (let i = 0; i < insights.length; i += CHUNK_SIZE) {
+              const chunk = insights.slice(i, i + CHUNK_SIZE);
 
-                // Deterministic ID for idempotency (same insight = same event)
-                const eventId = `evt-${insight.id}`;
+              const chunkResults = await Promise.allSettled(
+                chunk.map((insight) => {
+                  // Construct a contract-conformant payload
+                  const payload: HeimgeistInsightChronikPayload = {
+                    kind: 'heimgeist.insight',
+                    version: '1.0',
+                    data: insight,
+                    meta: {
+                      role: insight.role,
+                      occurred_at: insight.timestamp,
+                      schema_version: '1.0.0'
+                    },
+                  };
 
-                return this.chronik!.append({
-                  id: eventId,
-                  type: EventType.HeimgeistInsight,
-                  timestamp: new Date(), // Ingest time
-                  source: 'heimgeist',
-                  payload: payload as unknown as Record<string, unknown>,
-                });
-              })
-            );
+                  // Deterministic ID for idempotency (same insight = same event)
+                  const eventId = `evt-${insight.id}`;
+
+                  // Note: In a real implementation we would sanitize the payload here
+                  // For now, we rely on the Insight structure being generally safe
+
+                  return this.chronik!.append({
+                    id: eventId,
+                    type: EventType.HeimgeistInsight,
+                    timestamp: new Date(), // Ingest time
+                    source: 'heimgeist',
+                    payload: payload as unknown as Record<string, unknown>,
+                  });
+                })
+              );
+
+              // Update stats
+              chunkResults.forEach(r => {
+                if (r.status === 'fulfilled') {
+                  result.success++;
+                } else {
+                  result.failed++;
+                  result.errors.push(`${r.reason}`);
+                }
+              });
+            }
 
             // Log failures if any
-            const rejected = results.filter((r) => r.status === 'rejected');
-            if (rejected.length > 0) {
+            if (result.failed > 0) {
               this.logger.error(
-                `Failed to archive ${rejected.length} insights to Chronik. First error: ${
-                  (rejected[0] as PromiseRejectedResult).reason
-                }`
+                `Failed to archive ${result.failed} insights to Chronik. First error: ${result.errors[0]}`
               );
             }
           }
@@ -738,6 +761,8 @@ export class Heimgeist {
           break;
       }
     }
+
+    return result;
   }
 
   /**

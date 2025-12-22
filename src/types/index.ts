@@ -350,3 +350,26 @@ export interface ChronikClient {
   nextEvent(types: string[]): Promise<ChronikEvent | null>;
   append(event: Partial<ChronikEvent>): Promise<void>;
 }
+
+/**
+ * Payload contract for Heimgeist Insights sent to Chronik
+ */
+export interface HeimgeistInsightChronikPayload {
+  kind: 'heimgeist.insight';
+  version: string;
+  data: Insight;
+  meta: {
+    role: HeimgeistRole;
+    occurred_at: Date;
+    schema_version: string;
+  };
+}
+
+/**
+ * Result of the archiving process
+ */
+export interface ArchiveResult {
+  success: number;
+  failed: number;
+  errors: string[];
+}
