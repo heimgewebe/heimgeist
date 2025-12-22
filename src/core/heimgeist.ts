@@ -1150,6 +1150,10 @@ export class Heimgeist {
       return data.map((item) => this.sanitizePayload(item));
     }
 
+    if (data instanceof Date) {
+      return new Date(data);
+    }
+
     if (typeof data === 'object') {
       const result: Record<string, unknown> = {};
       // Refined sensitive keys list to avoid false positives (e.g. 'key' -> 'keyboard')
