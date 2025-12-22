@@ -708,18 +708,20 @@ export class Heimgeist {
               const chunkResults = await Promise.allSettled(
                 chunk.map((insight) => {
                   // Construct a contract-conformant payload
-                  // Deterministic ID for idempotency (same insight = same event)
-                  const safeId = this.sanitizeId(insight.id || uuidv4());
-                  const eventId = `evt-${safeId}`;
+                  // First, sanitize the insight content to ensure we don't hash secrets
+                  const sanitizedInsight = this.sanitizePayload(insight);
 
-                  // Generate stable idempotency key based on content
-                  const idempotencyKey = this.generateIdempotencyKey(insight);
+                  // Generate stable idempotency key based on *sanitized* content
+                  const idempotencyKey = this.generateIdempotencyKey(sanitizedInsight);
 
-                  // Construct a contract-conformant payload
+                  // Deterministic ID for idempotency derived from idempotency_key
+                  // This ensures event ID is stable even if insight.id is missing or random
+                  const eventId = `evt-${idempotencyKey.slice(0, 32)}`;
+
                   const payload: HeimgeistInsightChronikPayload = {
                     kind: 'heimgeist.insight',
                     version: '1.0',
-                    data: this.sanitizePayload(insight),
+                    data: sanitizedInsight,
                     meta: {
                       role: insight.role,
                       occurred_at: insight.timestamp.toISOString(),
@@ -1150,7 +1152,20 @@ export class Heimgeist {
 
     if (typeof data === 'object') {
       const result: Record<string, unknown> = {};
-      const sensitiveKeys = ['token', 'secret', 'password', 'auth', 'key', 'credential'];
+      // Refined sensitive keys list to avoid false positives (e.g. 'key' -> 'keyboard')
+      const sensitiveKeys = [
+        'token',
+        'secret',
+        'password',
+        'auth_code',
+        'api_key',
+        'credential',
+        'bearer',
+        'cookie',
+        'session',
+        'private_key',
+        'ssh_key',
+      ];
 
       for (const [key, value] of Object.entries(data as Record<string, unknown>)) {
         if (sensitiveKeys.some((s) => key.toLowerCase().includes(s))) {
