@@ -1,11 +1,13 @@
 import { v4 as uuidv4 } from 'uuid';
 import * as fs from 'fs';
 import * as path from 'path';
+import * as crypto from 'crypto';
 import {
   HeimgeistConfig,
   HeimgeistRole,
   AutonomyLevel,
   ChronikEvent,
+  ChronikClient,
   EventType,
   Insight,
   PlannedAction,
@@ -19,6 +21,8 @@ import {
   Incident,
   Pattern,
   HeimgewebeCommand,
+  HeimgeistInsightChronikPayload,
+  ArchiveResult,
 } from '../types';
 import { loadConfig, getAutonomyLevelName } from '../config';
 import { STATE_DIR, INSIGHTS_DIR, ACTIONS_DIR } from '../config/state-paths';
@@ -54,12 +58,14 @@ export class Heimgeist {
   private actionsExecuted = 0;
   private lastActivity?: Date;
   private logger: Logger;
+  private chronik?: ChronikClient;
 
-  constructor(config?: HeimgeistConfig, logger: Logger = defaultLogger) {
+  constructor(config?: HeimgeistConfig, logger: Logger = defaultLogger, chronik?: ChronikClient) {
     // console.log('Heimgeist constructor config:', config);
     this.config = config || loadConfig();
     // console.log('Heimgeist effective config:', this.config);
     this.logger = logger;
+    this.chronik = chronik;
     this.startTime = new Date();
 
     if (this.config.persistenceEnabled !== false) {
@@ -173,7 +179,10 @@ export class Heimgeist {
 
     // Archivist role: persist insights
     if (this.config.activeRoles.includes(HeimgeistRole.Archivist)) {
-      await this.archive(newInsights);
+      const archiveResult = await this.archive(newInsights);
+      if (archiveResult.failed > 0) {
+        this.logger.warn(`Archivist: ${archiveResult.success} persisted, ${archiveResult.failed} failed.`);
+      }
     }
 
     return newInsights;
@@ -635,7 +644,9 @@ export class Heimgeist {
   /**
    * Archivist role: Persist insights to various outputs
    */
-  private async archive(insights: Insight[]): Promise<void> {
+  private async archive(insights: Insight[]): Promise<ArchiveResult> {
+    const result: ArchiveResult = { success: 0, failed: 0, errors: [] };
+
     // File persistence
     if (this.config.persistenceEnabled !== false) {
         // Ensure state directories exist
@@ -687,7 +698,69 @@ export class Heimgeist {
           }
           break;
         case 'chronik':
-          // Would send to chronik event store
+          // Send to chronik event store with architectural rigor
+          if (this.chronik) {
+            // Concurrency Control: Process in chunks to avoid overloading the backbone
+            const CHUNK_SIZE = 5;
+            for (let i = 0; i < insights.length; i += CHUNK_SIZE) {
+              const chunk = insights.slice(i, i + CHUNK_SIZE);
+
+              const chunkResults = await Promise.allSettled(
+                chunk.map((insight) => {
+                  // Construct a contract-conformant payload
+                  // First, sanitize the insight content to ensure we don't hash secrets
+                  const sanitizedInsight = this.sanitizePayload(insight);
+
+                  // Generate stable idempotency key based on *sanitized* content
+                  const idempotencyKey = this.generateIdempotencyKey(sanitizedInsight);
+
+                  // Deterministic ID for idempotency derived from idempotency_key
+                  // This ensures event ID is stable even if insight.id is missing or random
+                  const eventId = `evt-${idempotencyKey.slice(0, 32)}`;
+
+                  const payload: HeimgeistInsightChronikPayload = {
+                    kind: 'heimgeist.insight',
+                    version: '1.0',
+                    data: sanitizedInsight,
+                    meta: {
+                      role: insight.role,
+                      occurred_at: insight.timestamp.toISOString(),
+                      schema_version: '1.0.0',
+                      idempotency_key: idempotencyKey,
+                    },
+                  };
+
+                  // Runtime validation to ensure contract adherence
+                  this.validatePayload(payload);
+
+                  return this.chronik!.append({
+                    id: eventId,
+                    type: EventType.HeimgeistInsight,
+                    timestamp: new Date(), // Ingest time
+                    source: 'heimgeist',
+                    payload: payload as unknown as Record<string, unknown>,
+                  });
+                })
+              );
+
+              // Update stats
+              chunkResults.forEach(r => {
+                if (r.status === 'fulfilled') {
+                  result.success++;
+                } else {
+                  result.failed++;
+                  result.errors.push(`${r.reason}`);
+                }
+              });
+            }
+
+            // Log failures if any
+            if (result.failed > 0) {
+              this.logger.error(
+                `Failed to archive ${result.failed} insights to Chronik. First error: ${result.errors[0]}`
+              );
+            }
+          }
           break;
         case 'semantah':
           // Would update semantic graph
@@ -697,6 +770,8 @@ export class Heimgeist {
           break;
       }
     }
+
+    return result;
   }
 
   /**
@@ -1057,11 +1132,98 @@ export class Heimgeist {
   getPatternsByType(type: 'good' | 'bad'): Pattern[] {
     return Array.from(this.patterns.values()).filter((p) => p.type === type);
   }
+
+  /**
+   * Sanitize an ID to ensure it is safe for the backbone
+   */
+  private sanitizeId(id: string): string {
+    return id.replace(/[^a-zA-Z0-9-_]/g, '_');
+  }
+
+  /**
+   * Sanitize payload recursively to redact sensitive keys
+   */
+  private sanitizePayload(data: unknown): any {
+    if (!data) return data;
+
+    if (Array.isArray(data)) {
+      return data.map((item) => this.sanitizePayload(item));
+    }
+
+    if (data instanceof Date) {
+      return new Date(data);
+    }
+
+    if (typeof data === 'object') {
+      const result: Record<string, unknown> = {};
+      // Refined sensitive keys list to avoid false positives (e.g. 'key' -> 'keyboard')
+      const sensitiveKeys = [
+        'token',
+        'secret',
+        'password',
+        'auth_code',
+        'api_key',
+        'credential',
+        'bearer',
+        'cookie',
+        'session',
+        'private_key',
+        'ssh_key',
+      ];
+
+      for (const [key, value] of Object.entries(data as Record<string, unknown>)) {
+        if (sensitiveKeys.some((s) => key.toLowerCase().includes(s))) {
+          result[key] = '[REDACTED]';
+        } else {
+          result[key] = this.sanitizePayload(value);
+        }
+      }
+      return result;
+    }
+
+    return data;
+  }
+
+  /**
+   * Generate a stable idempotency key from insight content
+   */
+  private generateIdempotencyKey(insight: Insight): string {
+    const hash = crypto.createHash('sha256');
+    // We mix stable fields to form a unique fingerprint
+    hash.update(insight.role);
+    hash.update(insight.timestamp.toISOString());
+    hash.update(insight.title);
+    hash.update(insight.description);
+    return hash.digest('hex');
+  }
+
+  /**
+   * Validate the payload against the schema contract
+   * Throws if invalid
+   */
+  private validatePayload(payload: HeimgeistInsightChronikPayload): void {
+    if (payload.kind !== 'heimgeist.insight') {
+      throw new Error(`Invalid payload kind: ${payload.kind}`);
+    }
+    if (!payload.version) {
+      throw new Error('Payload version is missing');
+    }
+    if (!payload.data) {
+      throw new Error('Payload data is missing');
+    }
+    if (!payload.meta || !payload.meta.occurred_at || !payload.meta.role) {
+      throw new Error('Payload meta is incomplete');
+    }
+    // Check Date format (basic ISO check)
+    if (isNaN(Date.parse(payload.meta.occurred_at))) {
+      throw new Error('occurred_at is not a valid ISO date string');
+    }
+  }
 }
 
 /**
  * Create a new Heimgeist instance with default configuration
  */
-export function createHeimgeist(config?: HeimgeistConfig, logger?: Logger): Heimgeist {
-  return new Heimgeist(config, logger);
+export function createHeimgeist(config?: HeimgeistConfig, logger?: Logger, chronik?: ChronikClient): Heimgeist {
+  return new Heimgeist(config, logger, chronik);
 }

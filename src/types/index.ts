@@ -348,5 +348,29 @@ export interface GuardCheck {
  */
 export interface ChronikClient {
   nextEvent(types: string[]): Promise<ChronikEvent | null>;
-  append(event: Partial<ChronikEvent>): Promise<void>;
+  append(event: ChronikEvent): Promise<void>;
+}
+
+/**
+ * Payload contract for Heimgeist Insights sent to Chronik
+ */
+export interface HeimgeistInsightChronikPayload {
+  kind: 'heimgeist.insight';
+  version: string;
+  data: Insight;
+  meta: {
+    role: HeimgeistRole;
+    occurred_at: string; // ISO 8601
+    schema_version: string;
+    idempotency_key: string;
+  };
+}
+
+/**
+ * Result of the archiving process
+ */
+export interface ArchiveResult {
+  success: number;
+  failed: number;
+  errors: string[];
 }

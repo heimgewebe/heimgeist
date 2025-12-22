@@ -35,7 +35,7 @@ export class MockChronikClient implements ChronikClient {
     return null;
   }
 
-  async append(event: Partial<ChronikEvent>): Promise<void> {
+  async append(event: ChronikEvent): Promise<void> {
     console.log(`[MockChronik] Appended event: ${event.type}`, event.payload);
   }
 }

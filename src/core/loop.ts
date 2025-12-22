@@ -27,7 +27,7 @@ export class HeimgeistCoreLoop {
     config.autonomyLevel = autonomyLevel;
 
     // Create a Heimgeist instance to act as the single source of truth for logic and state
-    this.heimgeist = createHeimgeist(config, this.logger);
+    this.heimgeist = createHeimgeist(config, this.logger, this.chronik);
   }
 
   async start() {
