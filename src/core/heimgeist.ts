@@ -1160,8 +1160,6 @@ export class Heimgeist {
       meta: {
         role: role,
         occurred_at: occurredAt.toISOString(),
-        schema_version: '1.0.0',
-        idempotency_key: idempotencyKey,
       },
     };
 
@@ -1278,6 +1276,10 @@ export class Heimgeist {
     }
     if (!payload.meta || !payload.meta.occurred_at || !payload.meta.role) {
       throw new Error('Payload meta is incomplete');
+    }
+    // Strict contract check
+    if (payload.meta.role !== HeimgeistRole.Archivist) {
+         throw new Error(`Payload meta.role mismatch: expected ${HeimgeistRole.Archivist}, got ${payload.meta.role}`);
     }
     // Check Date format (basic ISO check)
     if (isNaN(Date.parse(payload.meta.occurred_at))) {
