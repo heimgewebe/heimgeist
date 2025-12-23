@@ -1150,8 +1150,6 @@ export class Heimgeist {
       meta: {
         role: role,
         occurred_at: occurredAt.toISOString(),
-        schema_version: '1.0.0',
-        idempotency_key: idempotencyKey,
       },
     };
 
