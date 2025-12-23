@@ -361,6 +361,8 @@ export interface HeimgeistInsightChronikPayload {
   meta: {
     role: HeimgeistRole;
     occurred_at: string; // ISO 8601
+    schema_version: string;
+    idempotency_key: string;
   };
 }
 

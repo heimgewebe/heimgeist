@@ -736,7 +736,7 @@ export class Heimgeist {
             // Log failures if any
             if (result.failed > 0) {
               this.logger.error(
-                `Failed to archive ${result.failed} insights to Chronik. First error: ${result.errors[0]}`
+                `[Best Effort] Failed to archive ${result.failed} insights to Chronik. Dropping events. First error: ${result.errors[0]}`
               );
             }
           }
@@ -1150,6 +1150,8 @@ export class Heimgeist {
       meta: {
         role: role,
         occurred_at: occurredAt.toISOString(),
+        schema_version: '1.0.0',
+        idempotency_key: idempotencyKey,
       },
     };
 
@@ -1258,8 +1260,8 @@ export class Heimgeist {
     if (payload.kind !== 'heimgeist.insight') {
       throw new Error(`Invalid payload kind: ${payload.kind}`);
     }
-    if (!payload.version) {
-      throw new Error('Payload version is missing');
+    if (payload.version !== 1) {
+      throw new Error(`Payload version mismatch: expected 1, got ${payload.version}`);
     }
     if (!payload.data) {
       throw new Error('Payload data is missing');

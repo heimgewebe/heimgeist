@@ -16,7 +16,9 @@ The event must be wrapped in a strict JSON structure:
   "id": "evt-${insight.id}",
   "meta": {
     "occurred_at": "ISO8601 Timestamp",
-    "role": "archivist"
+    "role": "archivist",
+    "schema_version": "1.0.0",
+    "idempotency_key": "sha256-hash"
   },
   "data": { ...insight_object... }
 }
@@ -26,4 +28,5 @@ The event must be wrapped in a strict JSON structure:
 1.  **ID Generation:** Must use `evt-${insight.id}`. If `insight.id` is missing, use a deterministic hash of the content.
 2.  **Timestamp:** `meta.occurred_at` must be the original insight timestamp in ISO 8601 format.
 3.  **Role:** `meta.role` must be set to `archivist` (the agent persisting the event), preserving the original `insight.role` inside `data`.
-4.  **Payload:** Large fields should be truncated to prevent transport failures.
+4.  **Meta Fields:** `schema_version` and `idempotency_key` are required for structural validation and reliable transport.
+5.  **Payload:** Large fields should be truncated to prevent transport failures.
