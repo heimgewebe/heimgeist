@@ -1,6 +1,8 @@
 # Heimgeist Insight Event Specification (v1)
 
-**Source of Truth:** This implementation follows the schema defined in `metarepo` (see `heimgewebe.events.v1` definitions). This document serves as Implementation Notes.
+**Source of Truth:** This document is a **derived explanation**. The canonical source of truth is defined in the `metarepo` at `contracts/heimgeist.insight.v1.schema.json`.
+
+All implementations must validate against the Metarepo schema.
 
 ## Protocol
 *   **Domain:** heimgeist
@@ -28,8 +30,8 @@ The event wrapper is constructed to satisfy the Metarepo contract:
 }
 ```
 
-## Rules
-1.  **ID Generation:** Must use `evt-${insight.id}`. If `insight.id` is missing, use a deterministic hash of the content.
+## Rules (Heimgeist Specific)
+1.  **ID Generation:** Must use `evt-${insight.id}`. If `insight.id` is missing, use a deterministic hash of the content: `evt-${sha256(content).slice(0,32)}`.
 2.  **Timestamp:** `meta.occurred_at` must be the original insight timestamp in ISO 8601 format.
-3.  **Role:** `meta.role` must be set to `archivist` (the agent persisting the event).
+3.  **Role:** `meta.role` must be strictly set to `archivist`.
 4.  **Payload:** Large fields in `origin` or `details` are truncated to prevent transport failures.
