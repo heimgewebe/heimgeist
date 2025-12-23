@@ -1,4 +1,4 @@
-import { ChronikEvent, EventType, ChronikClient } from '../types';
+import { ChronikEvent, EventType, ChronikClient, HeimgeistInsightEvent } from '../types';
 
 /**
  * Mock Chronik Client for development and testing.
@@ -35,7 +35,11 @@ export class MockChronikClient implements ChronikClient {
     return null;
   }
 
-  async append(event: ChronikEvent): Promise<void> {
-    console.log(`[MockChronik] Appended event: ${event.type}`, event.payload);
+  async append(event: ChronikEvent | HeimgeistInsightEvent): Promise<void> {
+    if ('type' in event) {
+        console.log(`[MockChronik] Appended legacy event: ${event.type}`, event.payload);
+    } else {
+        console.log(`[MockChronik] Appended Heimgeist event: ${event.kind} (${event.id})`, event.data);
+    }
   }
 }

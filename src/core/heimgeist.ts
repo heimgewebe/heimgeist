@@ -22,7 +22,9 @@ import {
   Pattern,
   HeimgewebeCommand,
   HeimgeistInsightChronikPayload,
+  HeimgeistInsightEvent,
   ArchiveResult,
+  HeimgeistInsightDataV1,
 } from '../types';
 import { loadConfig, getAutonomyLevelName } from '../config';
 import { STATE_DIR, INSIGHTS_DIR, ACTIONS_DIR } from '../config/state-paths';
@@ -88,7 +90,14 @@ export class Heimgeist {
         if (file.endsWith('.json')) {
           try {
             const content = fs.readFileSync(path.join(INSIGHTS_DIR, file), 'utf-8');
-            const insight = JSON.parse(content) as Insight;
+            const json = JSON.parse(content);
+            // Support legacy (raw Insight) and new (Event Envelope) format
+            let insight: Insight;
+            if (json.kind === 'heimgeist.insight' && json.data && json.data.origin) {
+               insight = json.data.origin as Insight;
+            } else {
+               insight = json as Insight;
+            }
             this.insights.set(insight.id, insight);
           } catch (e) {
             this.logger.warn(`Failed to load insight ${file}: ${e}`);
@@ -645,7 +654,7 @@ export class Heimgeist {
    * Archivist role: Persist insights to various outputs
    */
   private async archive(insights: Insight[]): Promise<ArchiveResult> {
-    const result: ArchiveResult = { success: 0, failed: 0, errors: [] };
+    const result: ArchiveResult = { total: 0, success: 0, failed: 0, errors: [] };
 
     // File persistence
     if (this.config.persistenceEnabled !== false) {
@@ -658,12 +667,13 @@ export class Heimgeist {
         this.logger.error(`Failed to create state directories: ${e}`);
         }
 
-        // Persist new insights
+        // Persist new insights (now as Full Events)
         for (const insight of insights) {
         try {
+            const event = this.wrapInsightV1(insight, HeimgeistRole.Archivist, insight.timestamp);
             fs.writeFileSync(
             path.join(INSIGHTS_DIR, `${insight.id}.json`),
-            JSON.stringify(insight, null, 2)
+            JSON.stringify(event, null, 2)
             );
         } catch (e) {
             this.logger.error(`Failed to persist insight ${insight.id}: ${e}`);
@@ -700,6 +710,9 @@ export class Heimgeist {
         case 'chronik':
           // Send to chronik event store with architectural rigor
           if (this.chronik) {
+            // Update total based on input insights
+            result.total = insights.length;
+
             // Concurrency Control: Process in chunks to avoid overloading the backbone
             const CHUNK_SIZE = 5;
             for (let i = 0; i < insights.length; i += CHUNK_SIZE) {
@@ -707,39 +720,8 @@ export class Heimgeist {
 
               const chunkResults = await Promise.allSettled(
                 chunk.map((insight) => {
-                  // Construct a contract-conformant payload
-                  // First, sanitize the insight content to ensure we don't hash secrets
-                  const sanitizedInsight = this.sanitizePayload(insight);
-
-                  // Generate stable idempotency key based on *sanitized* content
-                  const idempotencyKey = this.generateIdempotencyKey(sanitizedInsight);
-
-                  // Deterministic ID for idempotency derived from idempotency_key
-                  // This ensures event ID is stable even if insight.id is missing or random
-                  const eventId = `evt-${idempotencyKey.slice(0, 32)}`;
-
-                  const payload: HeimgeistInsightChronikPayload = {
-                    kind: 'heimgeist.insight',
-                    version: '1.0',
-                    data: sanitizedInsight,
-                    meta: {
-                      role: insight.role,
-                      occurred_at: insight.timestamp.toISOString(),
-                      schema_version: '1.0.0',
-                      idempotency_key: idempotencyKey,
-                    },
-                  };
-
-                  // Runtime validation to ensure contract adherence
-                  this.validatePayload(payload);
-
-                  return this.chronik!.append({
-                    id: eventId,
-                    type: EventType.HeimgeistInsight,
-                    timestamp: new Date(), // Ingest time
-                    source: 'heimgeist',
-                    payload: payload as unknown as Record<string, unknown>,
-                  });
+                  const event = this.wrapInsightV1(insight, HeimgeistRole.Archivist, insight.timestamp);
+                  return this.chronik!.append(event);
                 })
               );
 
@@ -757,7 +739,7 @@ export class Heimgeist {
             // Log failures if any
             if (result.failed > 0) {
               this.logger.error(
-                `Failed to archive ${result.failed} insights to Chronik. First error: ${result.errors[0]}`
+                `[Best Effort] Failed to archive ${result.failed} insights to Chronik. Dropping events. First error: ${result.errors[0]}`
               );
             }
           }
@@ -1141,6 +1123,90 @@ export class Heimgeist {
   }
 
   /**
+   * Contract-first Wrapper for Heimgeist Insight Events
+   */
+  private wrapInsightV1(insight: Insight, role: HeimgeistRole, occurredAt: Date): HeimgeistInsightEvent {
+    // 1. Sanitize & Truncate
+    // First, sanitize the insight content to ensure we don't hash secrets or persist oversize data
+    let sanitizedInsight = this.sanitizePayload(insight);
+    sanitizedInsight = this.truncatePayload(sanitizedInsight);
+
+    // 2. Idempotency Key
+    // Generate stable idempotency key based on *sanitized* content
+    const idempotencyKey = this.generateIdempotencyKey(sanitizedInsight);
+
+    // 3. Event ID
+    // Deterministic ID from insight.id if available, else hash fallback
+    let eventId: string;
+    if (insight.id) {
+        eventId = `evt-${insight.id}`;
+    } else {
+        this.logger.warn('Archivist: insight.id missing, falling back to hash-based ID');
+        eventId = `evt-${idempotencyKey.slice(0, 32)}`;
+    }
+
+    // 4. Construct Payload
+    // Map sanitized insight to Strict Data Contract (v1)
+    const strictData: HeimgeistInsightDataV1 = {
+      insight_type: sanitizedInsight.type,
+      summary: sanitizedInsight.title,
+      details: sanitizedInsight.description,
+      context_refs: sanitizedInsight.context,
+      origin: sanitizedInsight,
+    };
+
+    const event: HeimgeistInsightEvent = {
+      kind: 'heimgeist.insight',
+      version: 1,
+      id: eventId,
+      meta: {
+        occurred_at: occurredAt.toISOString(),
+        producer: 'heimgeist', // Strict requirement: producer="heimgeist"
+      },
+      data: strictData,
+    };
+
+    // 5. Runtime Validation
+    this.validatePayload(event);
+
+    return event;
+  }
+
+  /**
+   * Truncate payload if it exceeds size limits or contains huge strings
+   */
+  private truncatePayload(data: any): any {
+    const MAX_STRING_LENGTH = 10000; // 10kb limit per string field
+
+    // Recursive truncation
+    const truncate = (obj: any): any => {
+        if (!obj) return obj;
+        if (typeof obj === 'string') {
+            if (obj.length > MAX_STRING_LENGTH) {
+                return obj.substring(0, MAX_STRING_LENGTH) + '... [TRUNCATED]';
+            }
+            return obj;
+        }
+        if (Array.isArray(obj)) {
+            return obj.map(truncate);
+        }
+        if (obj instanceof Date) {
+            return new Date(obj);
+        }
+        if (typeof obj === 'object') {
+            const res: Record<string, any> = {};
+            for (const [key, value] of Object.entries(obj)) {
+                res[key] = truncate(value);
+            }
+            return res;
+        }
+        return obj;
+    };
+
+    return truncate(data);
+  }
+
+  /**
    * Sanitize payload recursively to redact sensitive keys
    */
   private sanitizePayload(data: unknown): any {
@@ -1201,21 +1267,28 @@ export class Heimgeist {
    * Validate the payload against the schema contract
    * Throws if invalid
    */
-  private validatePayload(payload: HeimgeistInsightChronikPayload): void {
-    if (payload.kind !== 'heimgeist.insight') {
-      throw new Error(`Invalid payload kind: ${payload.kind}`);
+  private validatePayload(event: HeimgeistInsightEvent): void {
+    if (event.kind !== 'heimgeist.insight') {
+      throw new Error(`Invalid event kind: ${event.kind}`);
     }
-    if (!payload.version) {
-      throw new Error('Payload version is missing');
+    if (event.version !== 1) {
+      throw new Error(`Event version mismatch: expected 1, got ${event.version}`);
     }
-    if (!payload.data) {
-      throw new Error('Payload data is missing');
+    if (!event.id) {
+        throw new Error('Event id is missing');
     }
-    if (!payload.meta || !payload.meta.occurred_at || !payload.meta.role) {
-      throw new Error('Payload meta is incomplete');
+    if (!event.data) {
+      throw new Error('Event data is missing');
+    }
+    if (!event.meta || !event.meta.occurred_at || !event.meta.producer) {
+      throw new Error('Event meta is incomplete');
+    }
+    // Strict contract check
+    if (event.meta.producer !== 'heimgeist') {
+         throw new Error(`Event meta.producer mismatch: expected "heimgeist", got ${event.meta.producer}`);
     }
     // Check Date format (basic ISO check)
-    if (isNaN(Date.parse(payload.meta.occurred_at))) {
+    if (isNaN(Date.parse(event.meta.occurred_at))) {
       throw new Error('occurred_at is not a valid ISO date string');
     }
   }

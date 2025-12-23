@@ -344,25 +344,49 @@ export interface GuardCheck {
 }
 
 /**
+ * Strict data contract for Heimgeist Insights (v1)
+ */
+export interface HeimgeistInsightDataV1 {
+  insight_type: string;
+  summary: string;
+  details: string;
+  context_refs?: Record<string, unknown>;
+  origin?: Insight; // Full original insight for data preservation
+}
+
+/**
+ * Top-level Event Contract for Heimgeist Insights
+ */
+export interface HeimgeistInsightEvent {
+  kind: 'heimgeist.insight';
+  version: number; // 1
+  id: string; // evt-<uuid>
+  meta: {
+    occurred_at: string; // ISO 8601
+    producer: string; // "heimgeist"
+  };
+  data: HeimgeistInsightDataV1;
+}
+
+/**
  * Interface for Chronik Client
  */
 export interface ChronikClient {
   nextEvent(types: string[]): Promise<ChronikEvent | null>;
-  append(event: ChronikEvent): Promise<void>;
+  append(event: ChronikEvent | HeimgeistInsightEvent): Promise<void>;
 }
 
 /**
  * Payload contract for Heimgeist Insights sent to Chronik
+ * @deprecated Use HeimgeistInsightEvent
  */
 export interface HeimgeistInsightChronikPayload {
   kind: 'heimgeist.insight';
-  version: string;
-  data: Insight;
+  version: number;
+  data: HeimgeistInsightDataV1;
   meta: {
     role: HeimgeistRole;
     occurred_at: string; // ISO 8601
-    schema_version: string;
-    idempotency_key: string;
   };
 }
 
@@ -370,6 +394,7 @@ export interface HeimgeistInsightChronikPayload {
  * Result of the archiving process
  */
 export interface ArchiveResult {
+  total: number;
   success: number;
   failed: number;
   errors: string[];
