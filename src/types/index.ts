@@ -352,12 +352,23 @@ export interface ChronikClient {
 }
 
 /**
+ * Strict data contract for Heimgeist Insights (v1)
+ */
+export interface HeimgeistInsightDataV1 {
+  insight_type: string;
+  summary: string;
+  details: string;
+  context_refs?: Record<string, unknown>;
+  origin?: Insight; // Full original insight for data preservation
+}
+
+/**
  * Payload contract for Heimgeist Insights sent to Chronik
  */
 export interface HeimgeistInsightChronikPayload {
   kind: 'heimgeist.insight';
   version: number;
-  data: Insight;
+  data: HeimgeistInsightDataV1;
   meta: {
     role: HeimgeistRole;
     occurred_at: string; // ISO 8601

@@ -23,6 +23,7 @@ import {
   HeimgewebeCommand,
   HeimgeistInsightChronikPayload,
   ArchiveResult,
+  HeimgeistInsightDataV1,
 } from '../types';
 import { loadConfig, getAutonomyLevelName } from '../config';
 import { STATE_DIR, INSIGHTS_DIR, ACTIONS_DIR } from '../config/state-paths';
@@ -1143,10 +1144,19 @@ export class Heimgeist {
     }
 
     // 4. Construct Payload
+    // Map sanitized insight to Strict Data Contract (v1)
+    const strictData: HeimgeistInsightDataV1 = {
+      insight_type: sanitizedInsight.type,
+      summary: sanitizedInsight.title,
+      details: sanitizedInsight.description,
+      context_refs: sanitizedInsight.context,
+      origin: sanitizedInsight,
+    };
+
     const payload: HeimgeistInsightChronikPayload = {
       kind: 'heimgeist.insight',
       version: 1,
-      data: sanitizedInsight,
+      data: strictData,
       meta: {
         role: role,
         occurred_at: occurredAt.toISOString(),
