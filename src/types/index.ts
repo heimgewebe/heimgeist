@@ -344,14 +344,6 @@ export interface GuardCheck {
 }
 
 /**
- * Interface for Chronik Client
- */
-export interface ChronikClient {
-  nextEvent(types: string[]): Promise<ChronikEvent | null>;
-  append(event: ChronikEvent): Promise<void>;
-}
-
-/**
  * Strict data contract for Heimgeist Insights (v1)
  */
 export interface HeimgeistInsightDataV1 {
@@ -363,7 +355,30 @@ export interface HeimgeistInsightDataV1 {
 }
 
 /**
+ * Top-level Event Contract for Heimgeist Insights
+ */
+export interface HeimgeistInsightEvent {
+  kind: 'heimgeist.insight';
+  version: number; // 1
+  id: string; // evt-<uuid>
+  meta: {
+    occurred_at: string; // ISO 8601
+    producer: string; // "heimgeist"
+  };
+  data: HeimgeistInsightDataV1;
+}
+
+/**
+ * Interface for Chronik Client
+ */
+export interface ChronikClient {
+  nextEvent(types: string[]): Promise<ChronikEvent | null>;
+  append(event: ChronikEvent | HeimgeistInsightEvent): Promise<void>;
+}
+
+/**
  * Payload contract for Heimgeist Insights sent to Chronik
+ * @deprecated Use HeimgeistInsightEvent
  */
 export interface HeimgeistInsightChronikPayload {
   kind: 'heimgeist.insight';
