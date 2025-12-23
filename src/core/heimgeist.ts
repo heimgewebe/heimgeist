@@ -645,7 +645,7 @@ export class Heimgeist {
    * Archivist role: Persist insights to various outputs
    */
   private async archive(insights: Insight[]): Promise<ArchiveResult> {
-    const result: ArchiveResult = { success: 0, failed: 0, errors: [] };
+    const result: ArchiveResult = { total: 0, success: 0, failed: 0, errors: [] };
 
     // File persistence
     if (this.config.persistenceEnabled !== false) {
@@ -700,6 +700,9 @@ export class Heimgeist {
         case 'chronik':
           // Send to chronik event store with architectural rigor
           if (this.chronik) {
+            // Update total based on input insights
+            result.total = insights.length;
+
             // Concurrency Control: Process in chunks to avoid overloading the backbone
             const CHUNK_SIZE = 5;
             for (let i = 0; i < insights.length; i += CHUNK_SIZE) {
@@ -707,31 +710,7 @@ export class Heimgeist {
 
               const chunkResults = await Promise.allSettled(
                 chunk.map((insight) => {
-                  // Construct a contract-conformant payload
-                  // First, sanitize the insight content to ensure we don't hash secrets
-                  const sanitizedInsight = this.sanitizePayload(insight);
-
-                  // Generate stable idempotency key based on *sanitized* content
-                  const idempotencyKey = this.generateIdempotencyKey(sanitizedInsight);
-
-                  // Deterministic ID for idempotency derived from idempotency_key
-                  // This ensures event ID is stable even if insight.id is missing or random
-                  const eventId = `evt-${idempotencyKey.slice(0, 32)}`;
-
-                  const payload: HeimgeistInsightChronikPayload = {
-                    kind: 'heimgeist.insight',
-                    version: '1.0',
-                    data: sanitizedInsight,
-                    meta: {
-                      role: insight.role,
-                      occurred_at: insight.timestamp.toISOString(),
-                      schema_version: '1.0.0',
-                      idempotency_key: idempotencyKey,
-                    },
-                  };
-
-                  // Runtime validation to ensure contract adherence
-                  this.validatePayload(payload);
+                  const { eventId, payload } = this.wrapInsightV1(insight, HeimgeistRole.Archivist, insight.timestamp);
 
                   return this.chronik!.append({
                     id: eventId,
@@ -1138,6 +1117,82 @@ export class Heimgeist {
    */
   private sanitizeId(id: string): string {
     return id.replace(/[^a-zA-Z0-9-_]/g, '_');
+  }
+
+  /**
+   * Contract-first Wrapper for Heimgeist Insight Events
+   */
+  private wrapInsightV1(insight: Insight, role: HeimgeistRole, occurredAt: Date): { eventId: string; payload: HeimgeistInsightChronikPayload } {
+    // 1. Sanitize & Truncate
+    // First, sanitize the insight content to ensure we don't hash secrets or persist oversize data
+    let sanitizedInsight = this.sanitizePayload(insight);
+    sanitizedInsight = this.truncatePayload(sanitizedInsight);
+
+    // 2. Idempotency Key
+    // Generate stable idempotency key based on *sanitized* content
+    const idempotencyKey = this.generateIdempotencyKey(sanitizedInsight);
+
+    // 3. Event ID
+    // Deterministic ID from insight.id if available, else hash fallback
+    let eventId: string;
+    if (insight.id) {
+        eventId = `evt-${insight.id}`;
+    } else {
+        this.logger.warn('Archivist: insight.id missing, falling back to hash-based ID');
+        eventId = `evt-${idempotencyKey.slice(0, 32)}`;
+    }
+
+    // 4. Construct Payload
+    const payload: HeimgeistInsightChronikPayload = {
+      kind: 'heimgeist.insight',
+      version: 1,
+      data: sanitizedInsight,
+      meta: {
+        role: role,
+        occurred_at: occurredAt.toISOString(),
+        schema_version: '1.0.0',
+        idempotency_key: idempotencyKey,
+      },
+    };
+
+    // 5. Runtime Validation
+    this.validatePayload(payload);
+
+    return { eventId, payload };
+  }
+
+  /**
+   * Truncate payload if it exceeds size limits or contains huge strings
+   */
+  private truncatePayload(data: any): any {
+    const MAX_STRING_LENGTH = 10000; // 10kb limit per string field
+
+    // Recursive truncation
+    const truncate = (obj: any): any => {
+        if (!obj) return obj;
+        if (typeof obj === 'string') {
+            if (obj.length > MAX_STRING_LENGTH) {
+                return obj.substring(0, MAX_STRING_LENGTH) + '... [TRUNCATED]';
+            }
+            return obj;
+        }
+        if (Array.isArray(obj)) {
+            return obj.map(truncate);
+        }
+        if (obj instanceof Date) {
+            return new Date(obj);
+        }
+        if (typeof obj === 'object') {
+            const res: Record<string, any> = {};
+            for (const [key, value] of Object.entries(obj)) {
+                res[key] = truncate(value);
+            }
+            return res;
+        }
+        return obj;
+    };
+
+    return truncate(data);
   }
 
   /**

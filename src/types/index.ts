@@ -356,7 +356,7 @@ export interface ChronikClient {
  */
 export interface HeimgeistInsightChronikPayload {
   kind: 'heimgeist.insight';
-  version: string;
+  version: number;
   data: Insight;
   meta: {
     role: HeimgeistRole;
@@ -370,6 +370,7 @@ export interface HeimgeistInsightChronikPayload {
  * Result of the archiving process
  */
 export interface ArchiveResult {
+  total: number;
   success: number;
   failed: number;
   errors: string[];
