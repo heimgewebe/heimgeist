@@ -1127,8 +1127,8 @@ export class Heimgeist {
   private wrapInsightV1(insight: Insight, role: HeimgeistRole, occurredAt: Date): HeimgeistInsightEvent {
     // 1. Sanitize & Truncate
     // First, sanitize the insight content to ensure we don't hash secrets or persist oversize data
-    let sanitizedInsight = this.sanitizePayload(insight) as Insight;
-    sanitizedInsight = this.truncatePayload(sanitizedInsight) as Insight;
+    let sanitizedInsight = this.sanitizePayload(insight);
+    sanitizedInsight = this.truncatePayload(sanitizedInsight);
 
     // 2. Idempotency Key
     // Generate stable idempotency key based on *sanitized* content
@@ -1174,7 +1174,7 @@ export class Heimgeist {
   /**
    * Truncate payload if it exceeds size limits or contains huge strings
    */
-  private truncatePayload(data: unknown): unknown {
+  private truncatePayload<T>(data: T): T {
     const MAX_STRING_LENGTH = 10000; // 10kb limit per string field
 
     // Recursive truncation
@@ -1206,51 +1206,55 @@ export class Heimgeist {
       return obj;
     };
 
-    return truncate(data);
+    return truncate(data) as T;
   }
 
   /**
    * Sanitize payload recursively to redact sensitive keys
    */
-  private sanitizePayload(data: unknown): unknown {
-    if (data === null || data === undefined) return data;
+  private sanitizePayload<T>(data: T): T {
+    const sanitize = (obj: unknown): unknown => {
+      if (obj === null || obj === undefined) return obj;
 
-    if (Array.isArray(data)) {
-      return data.map((item) => this.sanitizePayload(item));
-    }
-
-    if (data instanceof Date) {
-      return new Date(data);
-    }
-
-    if (typeof data === 'object') {
-      const result: Record<string, unknown> = {};
-      // Refined sensitive keys list to avoid false positives (e.g. 'key' -> 'keyboard')
-      const sensitiveKeys = [
-        'token',
-        'secret',
-        'password',
-        'auth_code',
-        'api_key',
-        'credential',
-        'bearer',
-        'cookie',
-        'session',
-        'private_key',
-        'ssh_key',
-      ];
-
-      for (const [key, value] of Object.entries(data as Record<string, unknown>)) {
-        if (sensitiveKeys.some((s) => key.toLowerCase().includes(s))) {
-          result[key] = '[REDACTED]';
-        } else {
-          result[key] = this.sanitizePayload(value);
-        }
+      if (Array.isArray(obj)) {
+        return obj.map((item) => sanitize(item));
       }
-      return result;
-    }
 
-    return data;
+      if (obj instanceof Date) {
+        return new Date(obj);
+      }
+
+      if (typeof obj === 'object') {
+        const result: Record<string, unknown> = {};
+        // Refined sensitive keys list to avoid false positives (e.g. 'key' -> 'keyboard')
+        const sensitiveKeys = [
+          'token',
+          'secret',
+          'password',
+          'auth_code',
+          'api_key',
+          'credential',
+          'bearer',
+          'cookie',
+          'session',
+          'private_key',
+          'ssh_key',
+        ];
+
+        for (const [key, value] of Object.entries(obj as Record<string, unknown>)) {
+          if (sensitiveKeys.some((s) => key.toLowerCase().includes(s))) {
+            result[key] = '[REDACTED]';
+          } else {
+            result[key] = sanitize(value);
+          }
+        }
+        return result;
+      }
+
+      return obj;
+    };
+
+    return sanitize(data) as T;
   }
 
   /**
