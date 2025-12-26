@@ -21,7 +21,6 @@ import {
   Incident,
   Pattern,
   HeimgewebeCommand,
-  HeimgeistInsightChronikPayload,
   HeimgeistInsightEvent,
   ArchiveResult,
   HeimgeistInsightDataV1,
@@ -1128,8 +1127,8 @@ export class Heimgeist {
   private wrapInsightV1(insight: Insight, role: HeimgeistRole, occurredAt: Date): HeimgeistInsightEvent {
     // 1. Sanitize & Truncate
     // First, sanitize the insight content to ensure we don't hash secrets or persist oversize data
-    let sanitizedInsight = this.sanitizePayload(insight);
-    sanitizedInsight = this.truncatePayload(sanitizedInsight);
+    let sanitizedInsight = this.sanitizePayload(insight) as Insight;
+    sanitizedInsight = this.truncatePayload(sanitizedInsight) as Insight;
 
     // 2. Idempotency Key
     // Generate stable idempotency key based on *sanitized* content
@@ -1175,32 +1174,36 @@ export class Heimgeist {
   /**
    * Truncate payload if it exceeds size limits or contains huge strings
    */
-  private truncatePayload(data: any): any {
+  private truncatePayload(data: unknown): unknown {
     const MAX_STRING_LENGTH = 10000; // 10kb limit per string field
 
     // Recursive truncation
-    const truncate = (obj: any): any => {
-        if (!obj) return obj;
-        if (typeof obj === 'string') {
-            if (obj.length > MAX_STRING_LENGTH) {
-                return obj.substring(0, MAX_STRING_LENGTH) + '... [TRUNCATED]';
-            }
-            return obj;
-        }
-        if (Array.isArray(obj)) {
-            return obj.map(truncate);
-        }
-        if (obj instanceof Date) {
-            return new Date(obj);
-        }
-        if (typeof obj === 'object') {
-            const res: Record<string, any> = {};
-            for (const [key, value] of Object.entries(obj)) {
-                res[key] = truncate(value);
-            }
-            return res;
+    const truncate = (obj: unknown): unknown => {
+      if (obj === null || obj === undefined) return obj;
+
+      if (typeof obj === 'string') {
+        if (obj.length > MAX_STRING_LENGTH) {
+          return obj.substring(0, MAX_STRING_LENGTH) + '... [TRUNCATED]';
         }
         return obj;
+      }
+
+      if (Array.isArray(obj)) {
+        return obj.map(truncate);
+      }
+
+      if (obj instanceof Date) {
+        return new Date(obj);
+      }
+
+      if (typeof obj === 'object') {
+        const res: Record<string, unknown> = {};
+        for (const [key, value] of Object.entries(obj as Record<string, unknown>)) {
+          res[key] = truncate(value);
+        }
+        return res;
+      }
+      return obj;
     };
 
     return truncate(data);
@@ -1209,8 +1212,8 @@ export class Heimgeist {
   /**
    * Sanitize payload recursively to redact sensitive keys
    */
-  private sanitizePayload(data: unknown): any {
-    if (!data) return data;
+  private sanitizePayload(data: unknown): unknown {
+    if (data === null || data === undefined) return data;
 
     if (Array.isArray(data)) {
       return data.map((item) => this.sanitizePayload(item));
