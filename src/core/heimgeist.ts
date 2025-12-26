@@ -21,7 +21,6 @@ import {
   Incident,
   Pattern,
   HeimgewebeCommand,
-  HeimgeistInsightChronikPayload,
   HeimgeistInsightEvent,
   ArchiveResult,
   HeimgeistInsightDataV1,
@@ -1175,79 +1174,87 @@ export class Heimgeist {
   /**
    * Truncate payload if it exceeds size limits or contains huge strings
    */
-  private truncatePayload(data: any): any {
+  private truncatePayload<T>(data: T): T {
     const MAX_STRING_LENGTH = 10000; // 10kb limit per string field
 
     // Recursive truncation
-    const truncate = (obj: any): any => {
-        if (!obj) return obj;
-        if (typeof obj === 'string') {
-            if (obj.length > MAX_STRING_LENGTH) {
-                return obj.substring(0, MAX_STRING_LENGTH) + '... [TRUNCATED]';
-            }
-            return obj;
-        }
-        if (Array.isArray(obj)) {
-            return obj.map(truncate);
-        }
-        if (obj instanceof Date) {
-            return new Date(obj);
-        }
-        if (typeof obj === 'object') {
-            const res: Record<string, any> = {};
-            for (const [key, value] of Object.entries(obj)) {
-                res[key] = truncate(value);
-            }
-            return res;
+    const truncate = (obj: unknown): unknown => {
+      if (obj === null || obj === undefined) return obj;
+
+      if (typeof obj === 'string') {
+        if (obj.length > MAX_STRING_LENGTH) {
+          return obj.substring(0, MAX_STRING_LENGTH) + '... [TRUNCATED]';
         }
         return obj;
+      }
+
+      if (Array.isArray(obj)) {
+        return obj.map(truncate);
+      }
+
+      if (obj instanceof Date) {
+        return new Date(obj);
+      }
+
+      if (typeof obj === 'object') {
+        const res: Record<string, unknown> = {};
+        for (const [key, value] of Object.entries(obj as Record<string, unknown>)) {
+          res[key] = truncate(value);
+        }
+        return res;
+      }
+      return obj;
     };
 
-    return truncate(data);
+    return truncate(data) as T;
   }
 
   /**
    * Sanitize payload recursively to redact sensitive keys
    */
-  private sanitizePayload(data: unknown): any {
-    if (!data) return data;
+  private sanitizePayload<T>(data: T): T {
+    const sanitize = (obj: unknown): unknown => {
+      if (obj === null || obj === undefined) return obj;
 
-    if (Array.isArray(data)) {
-      return data.map((item) => this.sanitizePayload(item));
-    }
-
-    if (data instanceof Date) {
-      return new Date(data);
-    }
-
-    if (typeof data === 'object') {
-      const result: Record<string, unknown> = {};
-      // Refined sensitive keys list to avoid false positives (e.g. 'key' -> 'keyboard')
-      const sensitiveKeys = [
-        'token',
-        'secret',
-        'password',
-        'auth_code',
-        'api_key',
-        'credential',
-        'bearer',
-        'cookie',
-        'session',
-        'private_key',
-        'ssh_key',
-      ];
-
-      for (const [key, value] of Object.entries(data as Record<string, unknown>)) {
-        if (sensitiveKeys.some((s) => key.toLowerCase().includes(s))) {
-          result[key] = '[REDACTED]';
-        } else {
-          result[key] = this.sanitizePayload(value);
-        }
+      if (Array.isArray(obj)) {
+        return obj.map((item) => sanitize(item));
       }
-      return result;
-    }
 
-    return data;
+      if (obj instanceof Date) {
+        return new Date(obj);
+      }
+
+      if (typeof obj === 'object') {
+        const result: Record<string, unknown> = {};
+        // Refined sensitive keys list to avoid false positives (e.g. 'key' -> 'keyboard')
+        const sensitiveKeys = [
+          'token',
+          'secret',
+          'password',
+          'auth_code',
+          'api_key',
+          'credential',
+          'bearer',
+          'cookie',
+          'session',
+          'private_key',
+          'ssh_key',
+        ];
+
+        for (const [key, value] of Object.entries(obj as Record<string, unknown>)) {
+          if (sensitiveKeys.some((s) => key.toLowerCase().includes(s))) {
+            result[key] = '[REDACTED]';
+          } else {
+            result[key] = sanitize(value);
+          }
+        }
+        return result;
+      }
+
+      return obj;
+    };
+
+    return sanitize(data) as T;
   }
 
   /**
