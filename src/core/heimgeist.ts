@@ -155,7 +155,7 @@ export class Heimgeist {
 
     // Observer role: analyze the event
     if (this.config.activeRoles.includes(HeimgeistRole.Observer)) {
-      const observations = this.observe(event);
+      const observations = await this.observe(event);
       newInsights.push(...observations);
     }
 
@@ -199,8 +199,46 @@ export class Heimgeist {
   /**
    * Observer role: Analyze events and extract observations
    */
-  private observe(event: ChronikEvent): Insight[] {
+  private async observe(event: ChronikEvent): Promise<Insight[]> {
     const insights: Insight[] = [];
+
+    // Check for Knowledge Observatory Published
+    if (event.type === EventType.KnowledgeObservatoryPublished) {
+      const url = event.payload.url as string;
+      if (url) {
+        try {
+          const response = await fetch(url);
+          if (response.ok) {
+            const rawText = await response.text();
+            const hash = crypto.createHash('sha256').update(rawText).digest('hex');
+            const observatoryData = JSON.parse(rawText) as any;
+            const generatedAt = observatoryData.generated_at || 'unknown';
+            const summary = `Observatory data received from ${url}. Generated at ${generatedAt}.`;
+
+            insights.push({
+              id: uuidv4(),
+              timestamp: new Date(),
+              role: HeimgeistRole.Observer,
+              type: 'suggestion',
+              severity: RiskSeverity.Low,
+              title: 'Knowledge Observatory Update',
+              description: summary,
+              source: event,
+              context: {
+                url,
+                observatory_generated_at: generatedAt,
+                observatory_hash: hash,
+                internalOnly: true, // Do not propagate to Chronik
+              },
+            });
+          } else {
+            this.logger.warn(`Failed to fetch observatory data from ${url}: ${response.statusText}`);
+          }
+        } catch (error) {
+          this.logger.error(`Error processing observatory published event: ${error}`);
+        }
+      }
+    }
 
     // Check for CI failures
     if (event.type === EventType.CIResult && event.payload?.status === 'failed') {
@@ -709,13 +747,16 @@ export class Heimgeist {
         case 'chronik':
           // Send to chronik event store with architectural rigor
           if (this.chronik) {
+            // Filter out internal-only insights
+            const publicInsights = insights.filter((i) => !i.context?.internalOnly);
+
             // Update total based on input insights
-            result.total = insights.length;
+            result.total = publicInsights.length;
 
             // Concurrency Control: Process in chunks to avoid overloading the backbone
             const CHUNK_SIZE = 5;
-            for (let i = 0; i < insights.length; i += CHUNK_SIZE) {
-              const chunk = insights.slice(i, i + CHUNK_SIZE);
+            for (let i = 0; i < publicInsights.length; i += CHUNK_SIZE) {
+              const chunk = publicInsights.slice(i, i + CHUNK_SIZE);
 
               const chunkResults = await Promise.allSettled(
                 chunk.map((insight) => {
