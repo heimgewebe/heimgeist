@@ -206,33 +206,59 @@ export class Heimgeist {
     if (event.type === EventType.KnowledgeObservatoryPublished) {
       const url = event.payload.url as string;
       if (url) {
-        try {
-          const response = await fetch(url);
-          if (response.ok) {
-            const rawText = await response.text();
-            const hash = crypto.createHash('sha256').update(rawText).digest('hex');
-            const observatoryData = JSON.parse(rawText) as any;
-            const generatedAt = observatoryData.generated_at || 'unknown';
-            const summary = `Observatory data received from ${url}. Generated at ${generatedAt}.`;
+        // Enforce HTTPS
+        if (!url.startsWith('https://')) {
+          this.logger.warn(`Observatory URL must be HTTPS: ${url}`);
+          return insights;
+        }
 
-            insights.push({
-              id: uuidv4(),
-              timestamp: new Date(),
-              role: HeimgeistRole.Observer,
-              type: 'suggestion',
-              severity: RiskSeverity.Low,
-              title: 'Knowledge Observatory Update',
-              description: summary,
-              source: event,
-              context: {
-                url,
-                observatory_generated_at: generatedAt,
-                observatory_hash: hash,
-                internalOnly: true, // Do not propagate to Chronik
-              },
-            });
-          } else {
-            this.logger.warn(`Failed to fetch observatory data from ${url}: ${response.statusText}`);
+        try {
+          const controller = new AbortController();
+          const timeout = setTimeout(() => controller.abort(), 5000);
+
+          try {
+            const response = await fetch(url, { signal: controller.signal });
+            if (response.ok) {
+              const rawText = await response.text();
+              const hash = crypto.createHash('sha256').update(rawText).digest('hex');
+
+              // Idempotency check
+              const isDuplicate = Array.from(this.insights.values()).some(
+                (i) => i.context?.observatory_hash === hash
+              );
+
+              if (isDuplicate) {
+                this.logger.log(`Skipping duplicate observatory update (hash: ${hash})`);
+                return insights;
+              }
+
+              const observatoryData = JSON.parse(rawText) as any;
+              const generatedAt = observatoryData.generated_at || 'unknown';
+              const summary = `Observatory data received from ${url}. Generated at ${generatedAt}.`;
+
+              insights.push({
+                id: uuidv4(),
+                timestamp: new Date(),
+                role: HeimgeistRole.Observer,
+                type: 'suggestion',
+                severity: RiskSeverity.Low,
+                title: 'Knowledge Observatory Update',
+                description: summary,
+                source: event,
+                context: {
+                  url,
+                  observatory_generated_at: generatedAt,
+                  observatory_hash: hash,
+                  internalOnly: true, // Do not propagate to Chronik
+                  reason: 'observatory_published',
+                  insight_kind: 'heimgeist.insight.v1',
+                },
+              });
+            } else {
+              this.logger.warn(`Failed to fetch observatory data from ${url}: ${response.statusText}`);
+            }
+          } finally {
+            clearTimeout(timeout);
           }
         } catch (error) {
           this.logger.error(`Error processing observatory published event: ${error}`);
