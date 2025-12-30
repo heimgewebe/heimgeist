@@ -60,6 +60,7 @@ export class HeimgeistCoreLoop {
       EventType.PRMerged,
       EventType.DeployFailed,
       EventType.IncidentDetected,
+      EventType.KnowledgeObservatoryPublished,
     ]);
 
     if (event) {
