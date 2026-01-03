@@ -24,6 +24,10 @@ export default [
         module: 'readonly',
         require: 'readonly',
         exports: 'readonly',
+        fetch: 'readonly',
+        AbortController: 'readonly',
+        setTimeout: 'readonly',
+        clearTimeout: 'readonly',
       },
     },
     plugins: {
