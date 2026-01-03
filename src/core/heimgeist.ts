@@ -232,8 +232,12 @@ export class Heimgeist {
                 return insights;
               }
 
-              const observatoryData = JSON.parse(rawText) as any;
-              const generatedAt = observatoryData.generated_at || 'unknown';
+              const observatoryData = JSON.parse(rawText) as Record<string, unknown>;
+              const generatedAtRaw = observatoryData.generated_at;
+              const generatedAt =
+                typeof generatedAtRaw === 'string' && generatedAtRaw.length > 0
+                  ? generatedAtRaw
+                  : 'unknown';
               const summary = `Observatory data received from ${url}. Generated at ${generatedAt}.`;
 
               insights.push({
