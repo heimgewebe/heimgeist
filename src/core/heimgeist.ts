@@ -17,6 +17,9 @@ import {
   ExplainRequest,
   ExplainResponse,
   RiskSeverity,
+  RiskAssessment,
+  Recommendation,
+  Alternative,
   Epic,
   Incident,
   Pattern,
@@ -1000,11 +1003,7 @@ export class Heimgeist {
   /**
    * Get risk assessment for the system
    */
-  getRiskAssessment(): {
-    level: RiskSeverity;
-    reasons: string[];
-    recommendations: string[];
-  } {
+  getRiskAssessment(): RiskAssessment {
     const criticalInsights = Array.from(this.insights.values()).filter(
       (i) => i.severity === RiskSeverity.Critical
     );
@@ -1020,33 +1019,131 @@ export class Heimgeist {
 
     let level: RiskSeverity;
     const reasons: string[] = [];
-    const recommendations: string[] = [];
+    const recommendations: Recommendation[] = [];
+    const normalizeConfidence = (value: number): number =>
+      Number.isFinite(value) ? Math.max(0, Math.min(1, value)) : 0;
+    const computeConfidence = (base: number): number => {
+      const signalCount =
+        criticalInsights.length +
+        highInsights.length +
+        mediumInsights.length +
+        pendingActions.length;
+      return normalizeConfidence(base + Math.min(0.1, signalCount * 0.02));
+    };
+    let confidence = computeConfidence(0.4);
+
+    const addRecommendation = (
+      action: string,
+      rationale: string,
+      recommendationConfidence: number,
+      risks: string[],
+      assumptions: string[],
+      alternatives: Alternative[]
+    ): void => {
+      recommendations.push({
+        action,
+        rationale,
+        risks,
+        assumptions,
+        alternatives,
+        confidence: normalizeConfidence(recommendationConfidence),
+      });
+    };
 
     if (criticalInsights.length > 0) {
       level = RiskSeverity.Critical;
       reasons.push(`${criticalInsights.length} critical issues detected`);
-      recommendations.push('Address critical issues immediately');
+      confidence = computeConfidence(0.85);
+      addRecommendation(
+        'Address critical issues immediately',
+        'Critical insights indicate system instability or outage risk.',
+        0.9,
+        ['Service degradation or outage if unaddressed'],
+        ['Incident severity reflects current system impact'],
+        [
+          {
+            action: 'Initiate incident response playbook',
+            pros: ['Mobilizes stakeholders quickly', 'Limits blast radius'],
+            cons: ['Consumes on-call capacity'],
+          },
+        ]
+      );
     } else if (highInsights.length > 0) {
       level = RiskSeverity.High;
       reasons.push(`${highInsights.length} high-severity issues detected`);
-      recommendations.push('Review and address high-severity issues');
+      confidence = computeConfidence(0.75);
+      addRecommendation(
+        'Review and address high-severity issues',
+        'High-severity insights signal elevated risk that may escalate.',
+        0.8,
+        ['Escalation to critical incidents if ignored'],
+        ['Current monitoring reflects actual system state'],
+        [
+          {
+            action: 'Schedule focused remediation window',
+            pros: ['Prevents escalation', 'Aligns team bandwidth'],
+            cons: ['Delays feature delivery'],
+          },
+        ]
+      );
     } else if (mediumInsights.length > 0 || pendingActions.length > 0) {
       level = RiskSeverity.Medium;
+      confidence = computeConfidence(0.6);
       if (mediumInsights.length > 0) {
         reasons.push(`${mediumInsights.length} medium-severity issues detected`);
-        recommendations.push('Review and address medium-severity issues');
+        addRecommendation(
+          'Review and address medium-severity issues',
+          'Medium-severity insights indicate potential drift or instability.',
+          0.65,
+          ['Technical debt accumulation', 'Operational surprises later'],
+          ['Current trends will persist without intervention'],
+          [
+            {
+              action: 'Add preventive tests or monitoring',
+              pros: ['Early detection', 'Lower future remediation cost'],
+              cons: ['Upfront time investment'],
+            },
+          ]
+        );
       }
       if (pendingActions.length > 0) {
         reasons.push(`${pendingActions.length} pending actions require attention`);
-        recommendations.push('Review and approve/reject pending actions');
+        addRecommendation(
+          'Review and approve/reject pending actions',
+          'Pending actions require confirmation to mitigate known risks.',
+          0.6,
+          ['Delayed mitigation', 'Stale decisions'],
+          ['Action queue reflects current priorities'],
+          [
+            {
+              action: 'Triage actions in a short review session',
+              pros: ['Clears backlog', 'Aligns decision-makers'],
+              cons: ['Requires synchronous time'],
+            },
+          ]
+        );
       }
     } else {
       level = RiskSeverity.Low;
       reasons.push('No significant issues detected');
-      recommendations.push('Continue monitoring');
+      confidence = computeConfidence(0.3);
+      addRecommendation(
+        'Continue monitoring',
+        'Current signals show low immediate risk.',
+        0.35,
+        ['Blind spots if monitoring coverage is incomplete'],
+        ['Telemetry sources are up to date'],
+        [
+          {
+            action: 'Run a periodic health review',
+            pros: ['Validates assumptions', 'Keeps baselines fresh'],
+            cons: ['May be redundant if system is stable'],
+          },
+        ]
+      );
     }
 
-    return { level, reasons, recommendations };
+    return { level, reasons, recommendations, confidence };
   }
 
   /**

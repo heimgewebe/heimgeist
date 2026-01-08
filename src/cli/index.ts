@@ -54,12 +54,24 @@ program
 program
   .command('risk')
   .description('Get current risk assessment')
-  .action(() => {
+  .option('-v, --verbose', 'Explain confidence meaning')
+  .action((options: { verbose?: boolean }) => {
     const hg = getHeimgeist();
     const assessment = hg.getRiskAssessment();
+    const safeConfidence = Number.isFinite(assessment.confidence)
+      ? Math.max(0, Math.min(1, assessment.confidence))
+      : null;
 
     console.log('\n=== Risk Assessment ===\n');
     console.log(`Risk Level: ${assessment.level.toUpperCase()}`);
+    if (safeConfidence === null) {
+      console.log('Confidence: n/a');
+    } else {
+      console.log(`Confidence: ${(safeConfidence * 100).toFixed(0)}%`);
+      if (options.verbose) {
+        console.log('Confidence reflects certainty in the assessment signals.');
+      }
+    }
 
     if (assessment.reasons.length > 0) {
       console.log('\nReasons:');
@@ -68,7 +80,10 @@ program
 
     if (assessment.recommendations.length > 0) {
       console.log('\nRecommendations:');
-      assessment.recommendations.forEach((rec) => console.log(`  → ${rec}`));
+      assessment.recommendations.forEach((rec) => {
+        const details = rec.rationale ? ` — ${rec.rationale}` : '';
+        console.log(`  → ${rec.action}${details}`);
+      });
     }
 
     console.log('');
