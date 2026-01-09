@@ -56,7 +56,13 @@ export class CommandParser {
    * Check if tool name is valid
    */
   private static isValidTool(tool: string): tool is HeimgewebeCommand['tool'] {
-    return ['sichter', 'wgx', 'heimlern', 'metarepo', 'heimgeist'].includes(tool);
+    // Note: 'self' is treated as a shorthand for 'heimgeist' context-aware commands
+    // But since the regex captures the tool name, we might want to support @self or @heimgeist /self-...
+    // The issue says "@self.status".
+    // If the mention is "@self", then tool="self".
+    // Let's assume the user can write `@heimgewebe/self /status` or the regex allows just `@self`.
+    // The current regex is `@heimgewebe/(\w+)`. So `@heimgewebe/self`.
+    return ['sichter', 'wgx', 'heimlern', 'metarepo', 'heimgeist', 'self'].includes(tool);
   }
 
   /**
@@ -85,9 +91,51 @@ export class CommandParser {
         return this.validateMetarepoCommand(command);
       case 'heimgeist':
         return this.validateHeimgeistCommand(command);
+      case 'self':
+        return this.validateSelfCommand(command);
       default:
         return { valid: false, error: `Unknown tool: ${command.tool}` };
     }
+  }
+
+  /**
+   * Validate self commands
+   */
+  private static validateSelfCommand(command: HeimgewebeCommand): {
+    valid: boolean;
+    error?: string;
+  } {
+    const validCommands = ['status', 'reflect', 'reset', 'set'];
+
+    if (!validCommands.includes(command.command)) {
+      return {
+        valid: false,
+        error: `Invalid self command. Valid: ${validCommands.join(', ')}`,
+      };
+    }
+
+    if (command.command === 'set') {
+        // e.g. /set autonomy=aware
+        // We expect key=value arguments
+        if (command.args.length === 0) {
+            return { valid: false, error: 'set command requires key=value arguments' };
+        }
+        // Basic check for autonomy=...
+        const autonomyArg = command.args.find(a => a.startsWith('autonomy='));
+        if (autonomyArg) {
+            const level = autonomyArg.split('=')[1];
+            if (!['dormant', 'aware', 'reflective', 'critical'].includes(level)) {
+                return { valid: false, error: `Invalid autonomy level: ${level}` };
+            }
+        }
+    }
+
+    if (command.command === 'reflect') {
+        // Optional last=10
+        // No strict check needed for optional args
+    }
+
+    return { valid: true };
   }
 
   /**

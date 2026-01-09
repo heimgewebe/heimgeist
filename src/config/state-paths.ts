@@ -20,3 +20,9 @@ export const INSIGHTS_DIR = path.join(STATE_DIR, 'insights');
  * Contract: JSON files named by UUID.
  */
 export const ACTIONS_DIR = path.join(STATE_DIR, 'actions');
+
+/**
+ * Directory for persistent self-model state.
+ * Contract: JSON files named by timestamp/version.
+ */
+export const SELF_MODEL_DIR = path.join(STATE_DIR, 'self_model');

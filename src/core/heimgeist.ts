@@ -32,6 +32,8 @@ import { loadConfig, getAutonomyLevelName } from '../config';
 import { STATE_DIR, INSIGHTS_DIR, ACTIONS_DIR } from '../config/state-paths';
 import { Logger, defaultLogger } from './logger';
 import { CommandParser } from './command-parser';
+import { SelfModel } from './self_model';
+import { SystemSignals, SelfModelState } from '../types';
 
 /**
  * Insight context codes for identifying specific types of issues
@@ -63,6 +65,7 @@ export class Heimgeist {
   private lastActivity?: Date;
   private logger: Logger;
   private chronik?: ChronikClient;
+  private selfModel: SelfModel;
 
   constructor(config?: HeimgeistConfig, logger: Logger = defaultLogger, chronik?: ChronikClient) {
     // console.log('Heimgeist constructor config:', config);
@@ -71,6 +74,7 @@ export class Heimgeist {
     this.logger = logger;
     this.chronik = chronik;
     this.startTime = new Date();
+    this.selfModel = new SelfModel();
 
     if (this.config.persistenceEnabled !== false) {
       this.loadState();
@@ -143,7 +147,15 @@ export class Heimgeist {
       insightsGenerated: this.insights.size,
       actionsExecuted: this.actionsExecuted,
       lastActivity: this.lastActivity,
+      self_state: this.selfModel.getState(),
     };
+  }
+
+  /**
+   * Update Self-Model with system signals
+   */
+  public updateSelfModel(signals: SystemSignals): void {
+      this.selfModel.update(signals);
   }
 
   /**
@@ -533,6 +545,19 @@ export class Heimgeist {
   private planAction(insight: Insight): PlannedAction | null {
     const requiresConfirmation = this.config.autonomyLevel < AutonomyLevel.Operative;
 
+    // Safety Gate: Check Self-Model before planning high-risk actions
+    const safetyCheck = this.selfModel.checkSafetyGate();
+    if (!safetyCheck.safe) {
+        // Log warning and maybe return null or a restricted action
+        this.logger.warn(`Safety Gate: Preventing action planning due to self-state: ${safetyCheck.reason}`);
+        // For Critical/High risks, we might still want to propose but force confirmation
+        // But the requirement says "Kein selbstmodifizierender Vorschlag bei..."
+        // If it's critical, we might still want to alert.
+        if (insight.severity !== RiskSeverity.Critical) {
+            return null;
+        }
+    }
+
     // Plan actions based on insight type
     if (insight.type === 'risk' && insight.severity === RiskSeverity.Critical) {
       // Specialized action plan for Critical CI Failure on Main
@@ -698,6 +723,38 @@ export class Heimgeist {
           status: 'approved',
         };
       }
+    }
+
+    // Handle @self commands
+    if (insight.type === 'suggestion' && insight.title.startsWith('Command Received:')) {
+        const command = insight.context?.command as HeimgewebeCommand;
+        if (command && command.tool === 'self') {
+            // Explicitly handle self commands as immediate internal actions if needed,
+            // or return a PlannedAction that executes logic.
+            // Since these affect internal state immediately, we can execute them here directly or plan them.
+            // But 'planAction' is supposed to return a plan.
+            // Let's return a plan that "updates self model".
+
+            // Actually, for immediate feedback commands like @self.status, we might want to just log/reply.
+            // But the architecture prefers Actions.
+
+            return {
+                id: uuidv4(),
+                timestamp: new Date(),
+                trigger: insight,
+                steps: [
+                    {
+                        order: 1,
+                        tool: 'heimgeist-self-update',
+                        parameters: { command: command.command, args: command.args },
+                        description: `Update Self Model: ${command.command}`,
+                        status: 'pending'
+                    }
+                ],
+                requiresConfirmation: false,
+                status: 'approved'
+            };
+        }
     }
 
     return null;
@@ -1180,6 +1237,29 @@ export class Heimgeist {
     const action = this.plannedActions.get(actionId);
     if (!action) return false;
 
+    // Special handling for internal self-model actions
+    if (action.steps.some(s => s.tool === 'heimgeist-self-update')) {
+        const step = action.steps.find(s => s.tool === 'heimgeist-self-update');
+        if (step) {
+            const cmd = step.parameters.command as string;
+            const args = step.parameters.args as string[];
+
+            if (cmd === 'reset') this.selfModel.reset();
+            if (cmd === 'set' && args) {
+                const autonomyArg = args.find(a => a.startsWith('autonomy='));
+                if (autonomyArg) {
+                    const val = autonomyArg.split('=')[1] as any;
+                    this.selfModel.setAutonomy(val);
+                }
+            }
+            // 'status' and 'reflect' (query) are just logged or handled by state persistence
+        }
+        action.status = 'executed';
+        action.steps.forEach(s => s.status = 'completed');
+        await this.saveAction(action);
+        return true;
+    }
+
     // Only allow execution if status is approved or if it's pending and doesn't require confirmation
     // Note: The caller (Director/Loop) should ideally check policy before calling this,
     // but we enforce the state transition rules here.
@@ -1196,6 +1276,13 @@ export class Heimgeist {
     this.actionsExecuted++;
 
     await this.saveAction(action);
+
+    // Reflect on outcome
+    // We assume successful execution here means the *attempt* was successful.
+    // Real success would depend on the tool's result, which we don't have here in this mock execution.
+    // In a real system, executeAction would return a Result object.
+    this.selfModel.reflect(true);
+
     return true;
   }
 
