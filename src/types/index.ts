@@ -82,6 +82,15 @@ export interface SelfStateSnapshot {
 }
 
 /**
+ * Bundle of Self-State for external consumption (Artifact)
+ */
+export interface SelfStateBundle {
+  schema: 'heimgeist.self_state.bundle.v1';
+  current: SelfModelState;
+  history: SelfStateSnapshot[];
+}
+
+/**
  * System signals for self-model updates
  */
 export interface SystemSignals {

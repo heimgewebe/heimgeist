@@ -34,6 +34,13 @@ export class SelfModel {
   }
 
   /**
+   * Get history of states
+   */
+  public getHistory(limit: number = 50): SelfStateSnapshot[] {
+    return this.store.getHistory(limit);
+  }
+
+  /**
    * Update the self-model based on system signals
    * Implements: "Initiale Ableitung (heuristisch, explizit): CI-Fehlerquote, Anzahl offener Actions..."
    */

@@ -26,3 +26,9 @@ export const ACTIONS_DIR = path.join(STATE_DIR, 'actions');
  * Contract: JSON files named by timestamp/version.
  */
 export const SELF_MODEL_DIR = path.join(STATE_DIR, 'self_model');
+
+/**
+ * Directory for public artifacts (Leitstand/Observatory integration).
+ * Contract: Root-level directory.
+ */
+export const ARTIFACTS_DIR = 'artifacts';

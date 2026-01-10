@@ -29,10 +29,11 @@ import {
   HeimgeistInsightDataV1,
 } from '../types';
 import { loadConfig, getAutonomyLevelName } from '../config';
-import { STATE_DIR, INSIGHTS_DIR, ACTIONS_DIR } from '../config/state-paths';
+import { STATE_DIR, INSIGHTS_DIR, ACTIONS_DIR, ARTIFACTS_DIR } from '../config/state-paths';
 import { Logger, defaultLogger } from './logger';
 import { CommandParser } from './command-parser';
 import { SelfModel } from './self_model';
+import { ArtifactWriter } from './artifact_writer';
 import { SystemSignals, SelfModelState } from '../types';
 
 /**
@@ -66,6 +67,7 @@ export class Heimgeist {
   private logger: Logger;
   private chronik?: ChronikClient;
   private selfModel: SelfModel;
+  private artifactWriter: ArtifactWriter;
 
   constructor(config?: HeimgeistConfig, logger: Logger = defaultLogger, chronik?: ChronikClient) {
     // console.log('Heimgeist constructor config:', config);
@@ -75,6 +77,7 @@ export class Heimgeist {
     this.chronik = chronik;
     this.startTime = new Date();
     this.selfModel = new SelfModel();
+    this.artifactWriter = new ArtifactWriter(ARTIFACTS_DIR);
 
     if (this.config.persistenceEnabled !== false) {
       this.loadState();
@@ -156,6 +159,18 @@ export class Heimgeist {
    */
   public updateSelfModel(signals: SystemSignals): void {
       this.selfModel.update(signals);
+      this.writeSelfStateBundle();
+  }
+
+  /**
+   * Write the Self-State artifact bundle
+   */
+  private writeSelfStateBundle(): void {
+      if (this.config.persistenceEnabled !== false) {
+          const state = this.selfModel.getState();
+          const history = this.selfModel.getHistory(50);
+          this.artifactWriter.write(state, history);
+      }
   }
 
   /**
@@ -1282,6 +1297,7 @@ export class Heimgeist {
     // Real success would depend on the tool's result, which we don't have here in this mock execution.
     // In a real system, executeAction would return a Result object.
     this.selfModel.reflect(true);
+    this.writeSelfStateBundle();
 
     return true;
   }
