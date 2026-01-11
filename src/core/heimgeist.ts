@@ -591,12 +591,30 @@ export class Heimgeist {
     if (!safetyCheck.safe) {
         // Log warning and maybe return null or a restricted action
         this.logger.warn(`Safety Gate: Preventing action planning due to self-state: ${safetyCheck.reason}`);
-        // For Critical/High risks, we might still want to propose but force confirmation
-        // But the requirement says "Kein selbstmodifizierender Vorschlag bei..."
-        // If it's critical, we might still want to alert.
-        if (insight.severity !== RiskSeverity.Critical) {
-            return null;
+
+        // For Critical risks, we fallback to a degraded "Notify Only" mode.
+        // We do NOT propose self-modifying actions (wgx-guard, etc.) when the system is unstable.
+        if (insight.severity === RiskSeverity.Critical) {
+            return {
+                id: uuidv4(),
+                timestamp: new Date(),
+                trigger: insight,
+                steps: [
+                    {
+                        order: 1,
+                        tool: 'notify-slack',
+                        parameters: { message: `CRITICAL ISSUE detected but Heimgeist is fatigued/stressed. Manual intervention required. Reason: ${safetyCheck.reason}` },
+                        description: 'Emergency Notification (Degraded Mode due to Self-State)',
+                        status: 'pending'
+                    }
+                ],
+                requiresConfirmation: true, // Force human in the loop
+                status: 'pending'
+            };
         }
+
+        // Non-critical risks are ignored when safety gate is closed
+        return null;
     }
 
     // Plan actions based on insight type
@@ -724,8 +742,9 @@ export class Heimgeist {
     }
 
     // Handle Command insights
-    if (insight.type === 'suggestion' && insight.title.startsWith('Command Received:')) {
-      const command = insight.context?.command as HeimgewebeCommand;
+    // Robust routing: check context.command instead of fragile title string matching
+    if (insight.type === 'suggestion' && insight.context?.command) {
+      const command = insight.context.command as HeimgewebeCommand;
       if (command) {
         // If command is for heimgeist /analyse, we map it
         if (command.tool === 'heimgeist' && command.command === 'analyse') {
@@ -767,8 +786,9 @@ export class Heimgeist {
     }
 
     // Handle @self commands
-    if (insight.type === 'suggestion' && insight.title.startsWith('Command Received:')) {
-        const command = insight.context?.command as HeimgewebeCommand;
+    // Robust routing via context
+    if (insight.type === 'suggestion' && insight.context?.command) {
+        const command = insight.context.command as HeimgewebeCommand;
         if (command && command.tool === 'self') {
             // Explicitly handle self commands as immediate internal actions if needed,
             // or return a PlannedAction that executes logic.
