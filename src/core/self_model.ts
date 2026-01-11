@@ -10,6 +10,7 @@ export class SelfModel {
   private readonly FATIGUE_THRESHOLD = 0.75;
   private readonly CONFIDENCE_THRESHOLD = 0.35;
   private readonly RISK_TENSION_THRESHOLD = 0.6;
+  private readonly MAX_BASIS_SIGNALS = 50;
 
   constructor(initialState?: SelfModelState) {
     this.store = new SelfStateStore();
@@ -198,6 +199,21 @@ export class SelfModel {
   }
 
   /**
+   * Helper to safely add a basis signal with bounds
+   */
+  private addBasisSignal(msg: string): void {
+      if (!Array.isArray(this.state.basis_signals)) {
+          this.state.basis_signals = [];
+      }
+      this.state.basis_signals.push(msg);
+
+      // Limit growth
+      if (this.state.basis_signals.length > this.MAX_BASIS_SIGNALS) {
+          this.state.basis_signals = this.state.basis_signals.slice(-this.MAX_BASIS_SIGNALS);
+      }
+  }
+
+  /**
    * Manual override or command-based reset
    */
   public reset(): void {
@@ -207,8 +223,9 @@ export class SelfModel {
         risk_tension: 0.0,
         autonomy_level: 'aware',
         last_updated: new Date().toISOString(),
-        basis_signals: ['Manual Reset']
+        basis_signals: []
       };
+      this.addBasisSignal('Manual Reset');
       this.store.save(this.state);
   }
 
@@ -216,22 +233,8 @@ export class SelfModel {
    * Manual set
    */
   public setAutonomy(level: 'dormant' | 'aware' | 'reflective' | 'critical'): void {
-      const MAX_BASIS_SIGNALS = 50;
-
       this.state.autonomy_level = level;
-
-      // Defensive initialization
-      if (!Array.isArray(this.state.basis_signals)) {
-          this.state.basis_signals = [];
-      }
-
-      this.state.basis_signals.push(`Manual override to ${level}`);
-
-      // Limit unbounded growth
-      if (this.state.basis_signals.length > MAX_BASIS_SIGNALS) {
-          this.state.basis_signals = this.state.basis_signals.slice(-MAX_BASIS_SIGNALS);
-      }
-
+      this.addBasisSignal(`Manual override to ${level}`);
       this.state.last_updated = new Date().toISOString();
       this.store.save(this.state);
   }
