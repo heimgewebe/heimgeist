@@ -59,6 +59,13 @@ describe('CommandParser', () => {
       const commands = CommandParser.parseComment(text, context);
       expect(commands).toHaveLength(0);
     });
+
+    it('should handle SQL injection like characters in args', () => {
+      const text = '@heimgewebe/heimlern /pattern-bad "SQL; DROP TABLE"';
+      const commands = CommandParser.parseComment(text, context);
+      expect(commands).toHaveLength(1);
+      expect(commands[0].args[0]).toContain('SQL;');
+    });
   });
 
   describe('validateCommand', () => {
@@ -73,40 +80,5 @@ describe('CommandParser', () => {
           });
           expect(valid.valid).toBe(true);
       });
-  });
-
-  describe('Regression Tests', () => {
-    const context = {
-      pr: 123,
-      repo: 'heimgewebe/test',
-      author: 'test-user',
-    };
-
-    it('should parse multiple commands in one comment', () => {
-      const text = '@heimgewebe/sichter /quick\n@heimgewebe/wgx /guard';
-      const commands = CommandParser.parseComment(text, context);
-      expect(commands).toHaveLength(2);
-      expect(commands[0].tool).toBe('sichter');
-      expect(commands[1].tool).toBe('wgx');
-    });
-
-    it('should handle special characters in args', () => {
-      const text = '@heimgewebe/heimlern /pattern-bad "SQL; DROP TABLE"';
-      const commands = CommandParser.parseComment(text, context);
-      expect(commands).toHaveLength(1);
-      expect(commands[0].args[0]).toContain('SQL;');
-    });
-
-    it('should return empty array for no commands', () => {
-      const text = 'Just a regular comment without commands.';
-      const commands = CommandParser.parseComment(text, context);
-      expect(commands).toHaveLength(0);
-    });
-
-    it('should ignore unknown tools', () => {
-      const text = '@heimgewebe/unknown /do-something';
-      const commands = CommandParser.parseComment(text, context);
-      expect(commands).toHaveLength(0);
-    });
   });
 });

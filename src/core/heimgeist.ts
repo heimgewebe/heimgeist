@@ -748,6 +748,27 @@ export class Heimgeist {
     if (insight.type === 'suggestion' && insight.context?.command) {
       const command = insight.context.command as HeimgewebeCommand;
       if (command) {
+        // PRIORITY ROUTING: Self Model Commands
+        // We must check for 'self' tool first, otherwise the generic handler might capture it
+        if (command.tool === 'self') {
+            return {
+                id: uuidv4(),
+                timestamp: new Date(),
+                trigger: insight,
+                steps: [
+                    {
+                        order: 1,
+                        tool: 'heimgeist-self-update',
+                        parameters: { command: command.command, args: command.args },
+                        description: `Update Self Model: ${command.command}`,
+                        status: 'pending'
+                    }
+                ],
+                requiresConfirmation: false,
+                status: 'approved'
+            };
+        }
+
         // If command is for heimgeist /analyse, we map it
         if (command.tool === 'heimgeist' && command.command === 'analyse') {
           return {
@@ -785,39 +806,6 @@ export class Heimgeist {
           status: 'approved',
         };
       }
-    }
-
-    // Handle @self commands
-    // Robust routing via context
-    if (insight.type === 'suggestion' && insight.context?.command) {
-        const command = insight.context.command as HeimgewebeCommand;
-        if (command && command.tool === 'self') {
-            // Explicitly handle self commands as immediate internal actions if needed,
-            // or return a PlannedAction that executes logic.
-            // Since these affect internal state immediately, we can execute them here directly or plan them.
-            // But 'planAction' is supposed to return a plan.
-            // Let's return a plan that "updates self model".
-
-            // Actually, for immediate feedback commands like @self.status, we might want to just log/reply.
-            // But the architecture prefers Actions.
-
-            return {
-                id: uuidv4(),
-                timestamp: new Date(),
-                trigger: insight,
-                steps: [
-                    {
-                        order: 1,
-                        tool: 'heimgeist-self-update',
-                        parameters: { command: command.command, args: command.args },
-                        description: `Update Self Model: ${command.command}`,
-                        status: 'pending'
-                    }
-                ],
-                requiresConfirmation: false,
-                status: 'approved'
-            };
-        }
     }
 
     return null;
@@ -1300,69 +1288,67 @@ export class Heimgeist {
     const action = this.plannedActions.get(actionId);
     if (!action) return false;
 
-    // Special handling for internal self-model actions
-    if (action.steps.some(s => s.tool === 'heimgeist-self-update')) {
-        const step = action.steps.find(s => s.tool === 'heimgeist-self-update');
-        if (step) {
-            const cmd = step.parameters.command as string;
-            const args = step.parameters.args as string[];
+    try {
+      let executed = false;
 
-            if (cmd === 'reset') this.selfModel.reset();
-            if (cmd === 'set' && args) {
-                const autonomyArg = args.find(a => a.startsWith('autonomy='));
-                if (autonomyArg) {
-                    const val = autonomyArg.split('=')[1] as any;
-                    this.selfModel.setAutonomy(val);
-                }
+      // Special handling for internal self-model actions
+      if (action.steps.some((s) => s.tool === 'heimgeist-self-update')) {
+        const step = action.steps.find((s) => s.tool === 'heimgeist-self-update');
+        if (step) {
+          const cmd = step.parameters.command as string;
+          const args = (step.parameters.args as string[]) || [];
+
+          if (cmd === 'reset') this.selfModel.reset();
+          if (cmd === 'set' && args) {
+            const autonomyArg = args.find((a) => a.startsWith('autonomy='));
+            if (autonomyArg) {
+              const val = autonomyArg.split('=')[1] as any;
+              this.selfModel.setAutonomy(val);
             }
-            // 'status' and 'reflect' (query) are just logged or handled by state persistence
+          }
         }
-        action.status = 'executed';
-        action.steps.forEach(s => s.status = 'completed');
-        await this.saveAction(action);
-        return true;
-    }
-
-    // Special handling for internal notifications (degraded mode)
-    if (action.steps.some(s => s.tool === 'heimgeist-notify')) {
-        const step = action.steps.find(s => s.tool === 'heimgeist-notify');
+        executed = true;
+      }
+      // Special handling for internal notifications (degraded mode)
+      else if (action.steps.some((s) => s.tool === 'heimgeist-notify')) {
+        const step = action.steps.find((s) => s.tool === 'heimgeist-notify');
         if (step) {
-            this.logger.warn(`[HEIMGEIST-NOTIFY]: ${step.parameters.message}`);
+          this.logger.warn(`[HEIMGEIST-NOTIFY]: ${step.parameters.message}`);
         }
+        executed = true;
+      } else {
+        // Standard check
+        const canExecute =
+          action.status === 'approved' ||
+          (action.status === 'pending' && !action.requiresConfirmation);
+
+        if (!canExecute) return false;
+
+        this.actionsExecuted++;
+        executed = true;
+      }
+
+      if (executed) {
         action.status = 'executed';
-        action.steps.forEach(s => s.status = 'completed');
+        action.steps.forEach((s) => (s.status = 'completed'));
         await this.saveAction(action);
+
+        // Reflect success
+        this.selfModel.reflect(true);
+        this.writeSelfStateBundle();
+        void this.publishSelfStateSnapshot();
+
         return true;
+      }
+
+      return false;
+    } catch (error) {
+      this.logger.error(`Failed to execute action ${actionId}: ${error}`);
+      this.selfModel.reflect(false); // Reflect failure
+      this.writeSelfStateBundle();
+      void this.publishSelfStateSnapshot();
+      return false;
     }
-
-    // Only allow execution if status is approved or if it's pending and doesn't require confirmation
-    // Note: The caller (Director/Loop) should ideally check policy before calling this,
-    // but we enforce the state transition rules here.
-    const canExecute =
-      action.status === 'approved' ||
-      (action.status === 'pending' && !action.requiresConfirmation);
-
-    if (!canExecute) return false;
-
-    action.status = 'executed';
-    action.steps.forEach((step) => {
-      step.status = 'completed';
-    });
-    this.actionsExecuted++;
-
-    await this.saveAction(action);
-
-    // Reflect on outcome
-    // Since this is a mock execution, we treat "canExecute" as success.
-    // In a real system, this would be `toolResult.success`.
-    // We pass `true` explicitly but the architecture demands honesty.
-    this.selfModel.reflect(true);
-
-    // Always persist after reflection as this is a significant event
-    this.writeSelfStateBundle();
-    void this.publishSelfStateSnapshot();
-
-    return true;
   }
 
   /**

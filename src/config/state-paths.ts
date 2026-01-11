@@ -33,4 +33,4 @@ export const SELF_MODEL_DIR = path.join(STATE_DIR, 'self_model');
  * It produces consumable artifacts like bundles, distinct from event streams.
  * Contract: Root-level directory relative to repo root.
  */
-export const ARTIFACTS_DIR = 'artifacts';
+export const ARTIFACTS_DIR = path.resolve(process.cwd(), 'artifacts');
