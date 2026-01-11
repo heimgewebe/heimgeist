@@ -62,6 +62,45 @@ describe('Heimgeist Critical Flows', () => {
     expect(criticalAction?.steps[1].tool).toBe('sichter-quick');
   });
 
+  it('should degrade to notify-only when safety gate is closed for critical issues', async () => {
+      // Mock safety gate to fail
+      // We need to inject a bad state into selfModel.
+      // Since selfModel is private and instantiated in constructor, we might need to mock SelfModel module
+      // Or we can rely on update logic to set bad state.
+
+      // Let's use updateSelfModel to degrade health
+      const badSignals = {
+          cpu_load: 99, // Fatigue > 0.75
+          memory_pressure: 99,
+          open_actions_count: 50
+      };
+
+      heimgeist.updateSelfModel(badSignals);
+
+      const event = {
+        id: uuidv4(),
+        type: EventType.CIResult,
+        timestamp: new Date(),
+        source: 'github-actions',
+        payload: {
+          status: 'failed',
+          branch: 'main',
+          repo: 'test-repo',
+          pipeline_id: '123'
+        }
+      };
+
+      const insights = await heimgeist.processEvent(event);
+      const riskInsight = insights.find(i => i.type === 'risk');
+
+      const actions = heimgeist.getPlannedActions();
+      const criticalAction = actions.find(a => a.trigger.id === riskInsight?.id);
+
+      expect(criticalAction).toBeDefined();
+      expect(criticalAction?.steps[0].tool).toBe('heimgeist-notify'); // Degraded tool
+      expect(criticalAction?.requiresConfirmation).toBe(true);
+  });
+
   it('should treat CI failure on other branches as MEDIUM', async () => {
     const event = {
       id: uuidv4(),
