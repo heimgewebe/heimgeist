@@ -29,6 +29,8 @@ export const SELF_MODEL_DIR = path.join(STATE_DIR, 'self_model');
 
 /**
  * Directory for public artifacts (Leitstand/Observatory integration).
- * Contract: Root-level directory.
+ * This directory MUST be kept separate from internal state (STATE_DIR).
+ * It produces consumable artifacts like bundles, distinct from event streams.
+ * Contract: Root-level directory relative to repo root.
  */
 export const ARTIFACTS_DIR = 'artifacts';

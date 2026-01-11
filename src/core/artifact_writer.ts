@@ -35,6 +35,8 @@ export class ArtifactWriter {
     // History is expected to be newest-first, so slice(0, 50) keeps the latest.
     const limitedHistory = history.slice(0, 50);
 
+    // CONTRACT: Schema MUST be 'heimgeist.self_state.bundle.v1'
+    // History MUST be array of { timestamp, state } objects (SelfStateSnapshot)
     const bundle: SelfStateBundle = {
       schema: 'heimgeist.self_state.bundle.v1',
       current,
