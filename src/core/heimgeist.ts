@@ -1311,11 +1311,20 @@ export class Heimgeist {
       }
       // Special handling for internal notifications (degraded mode)
       else if (action.steps.some((s) => s.tool === 'heimgeist-notify')) {
-        const step = action.steps.find((s) => s.tool === 'heimgeist-notify');
-        if (step) {
-          this.logger.warn(`[HEIMGEIST-NOTIFY]: ${step.parameters.message}`);
+        // Enforce confirmation policy even for notify commands
+        const canExecute =
+          action.status === 'approved' ||
+          (action.status === 'pending' && !action.requiresConfirmation);
+
+        if (canExecute) {
+            const step = action.steps.find((s) => s.tool === 'heimgeist-notify');
+            if (step) {
+            this.logger.warn(`[HEIMGEIST-NOTIFY]: ${step.parameters.message}`);
+            }
+            executed = true;
+        } else {
+            return false;
         }
-        executed = true;
       } else {
         // Standard check
         const canExecute =

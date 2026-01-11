@@ -53,15 +53,15 @@ export class SelfModel {
     // 1. Calculate Fatigue
     // Heuristic: High CPU/Memory or many open actions causes fatigue
     let fatigue = 0.0;
-    if (signals.cpu_load && signals.cpu_load > 80) {
+    if (typeof signals.cpu_load === 'number' && signals.cpu_load > 80) {
         fatigue += 0.3;
         basis_signals.push('High CPU load');
     }
-    if (signals.memory_pressure && signals.memory_pressure > 80) {
+    if (typeof signals.memory_pressure === 'number' && signals.memory_pressure > 80) {
         fatigue += 0.3;
         basis_signals.push('High memory pressure');
     }
-    if (signals.open_actions_count && signals.open_actions_count > 10) {
+    if (typeof signals.open_actions_count === 'number' && signals.open_actions_count > 10) {
         fatigue += 0.2;
         basis_signals.push(`Open actions backlog: ${signals.open_actions_count}`);
     }
@@ -70,15 +70,15 @@ export class SelfModel {
     // 2. Calculate Risk Tension
     // Heuristic: CI failures, Conflicts, external Risk Score
     let riskTension = 0.0;
-    if (signals.risk_score) {
+    if (typeof signals.risk_score === 'number') {
         riskTension = signals.risk_score; // Direct mapping if available
     } else {
         // Fallback calculation
-        if (signals.ci_failure_rate && signals.ci_failure_rate > 0.2) {
+        if (typeof signals.ci_failure_rate === 'number' && signals.ci_failure_rate > 0.2) {
             riskTension += 0.4;
             basis_signals.push(`High CI failure rate: ${signals.ci_failure_rate}`);
         }
-        if (signals.conflicts_count && signals.conflicts_count > 0) {
+        if (typeof signals.conflicts_count === 'number' && signals.conflicts_count > 0) {
             riskTension += 0.3;
             basis_signals.push('Unresolved conflicts detected');
         }
@@ -92,7 +92,7 @@ export class SelfModel {
     let confidence = 1.0 - (this.state.fatigue * 0.4) - (this.state.risk_tension * 0.4);
 
     // If error rate is high, confidence drops drastically
-    if (signals.error_rate && signals.error_rate > 0.1) {
+    if (typeof signals.error_rate === 'number' && signals.error_rate > 0.1) {
         confidence -= 0.3;
         basis_signals.push(`High internal error rate: ${signals.error_rate}`);
     }
