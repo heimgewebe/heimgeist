@@ -70,4 +70,26 @@ describe('ArtifactWriter', () => {
     new ArtifactWriter(TEST_DIR);
     expect(fs.mkdirSync).toHaveBeenCalledWith(TEST_DIR, { recursive: true });
   });
+
+  it('should strip unknown fields from artifact output', () => {
+    const dirtyState = {
+      confidence: 0.9,
+      fatigue: 0.1,
+      risk_tension: 0.2,
+      autonomy_level: 'aware',
+      last_updated: '2023-01-01T12:00:00Z',
+      basis_signals: [],
+      internal_debug_value: 'SECRET',
+      _cache: {}
+    } as unknown as SelfModelState;
+
+    writer.write(dirtyState, []);
+
+    const call = (fs.writeFileSync as jest.Mock).mock.calls[0];
+    const writtenContent = JSON.parse(call[1]) as any;
+
+    expect(writtenContent.current.internal_debug_value).toBeUndefined();
+    expect(writtenContent.current._cache).toBeUndefined();
+    expect(writtenContent.current.confidence).toBe(0.9);
+  });
 });

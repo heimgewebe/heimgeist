@@ -39,8 +39,11 @@ export class ArtifactWriter {
     // History MUST be array of { timestamp, state } objects (SelfStateSnapshot)
     const bundle: SelfStateBundle = {
       schema: 'heimgeist.self_state.bundle.v1',
-      current,
-      history: limitedHistory
+      current: this.sanitizeSelfState(current),
+      history: limitedHistory.map(snapshot => ({
+        timestamp: snapshot.timestamp,
+        state: this.sanitizeSelfState(snapshot.state)
+      }))
     };
 
     const filename = 'self_state.json';
@@ -57,5 +60,20 @@ export class ArtifactWriter {
         if (fs.existsSync(tmpFilepath)) fs.unlinkSync(tmpFilepath);
       } catch (ignored) { /* empty */ }
     }
+  }
+
+  /**
+   * Sanitize state to ensure strict adherence to SelfModelState contract
+   * Drops any internal/debug fields that might have leaked into the object.
+   */
+  private sanitizeSelfState(state: SelfModelState): SelfModelState {
+    return {
+      confidence: state.confidence,
+      fatigue: state.fatigue,
+      risk_tension: state.risk_tension,
+      autonomy_level: state.autonomy_level,
+      last_updated: state.last_updated,
+      basis_signals: Array.isArray(state.basis_signals) ? [...state.basis_signals] : []
+    };
   }
 }
