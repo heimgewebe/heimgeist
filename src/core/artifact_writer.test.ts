@@ -92,4 +92,33 @@ describe('ArtifactWriter', () => {
     expect(writtenContent.current._cache).toBeUndefined();
     expect(writtenContent.current.confidence).toBe(0.9);
   });
+
+  it('should write valid ISO date for last_updated', () => {
+    const currentState: SelfModelState = {
+      confidence: 1,
+      fatigue: 0,
+      risk_tension: 0,
+      autonomy_level: 'aware',
+      last_updated: 'INVALID-DATE', // Input is just a string in type
+      basis_signals: []
+    };
+
+    // Writer just passes through, so we need to ensure the Input is valid in real usage.
+    // However, if we want to enforce it, sanitizeSelfState could validate.
+    // For now, let's verify that what we pass in comes out.
+    // Real SelfModel ensures new Date().toISOString().
+
+    // Let's test with a valid date and ensure it remains valid.
+    const validDate = new Date().toISOString();
+    currentState.last_updated = validDate;
+
+    writer.write(currentState, []);
+
+    const call = (fs.writeFileSync as jest.Mock).mock.calls[0];
+    const writtenContent = JSON.parse(call[1]) as any;
+
+    expect(writtenContent.current.last_updated).toBe(validDate);
+    // Simple regex check for ISO format
+    expect(writtenContent.current.last_updated).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}.\d{3}Z$/);
+  });
 });
