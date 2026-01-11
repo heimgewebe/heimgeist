@@ -94,6 +94,9 @@ export interface SelfStateBundle {
 
 /**
  * System signals for self-model updates
+ * Internal representation of system health.
+ * Ideally mapped from `hauski/system.signals.v1` (metarepo).
+ * Future alignment: add `occurred_at`, `source` meta-fields.
  */
 export interface SystemSignals {
   cpu_load?: number;
