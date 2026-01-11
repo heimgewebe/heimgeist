@@ -63,6 +63,7 @@ export enum EventType {
 
 /**
  * Self-Model state interface
+ * Canonical Contract: metarepo/contracts/heimgeist/self_state.schema.json
  */
 export interface SelfModelState {
   confidence: number;        // 0.0 – 1.0
@@ -83,6 +84,7 @@ export interface SelfStateSnapshot {
 
 /**
  * Bundle of Self-State for external consumption (Artifact)
+ * Canonical Contract: metarepo/contracts/heimgeist/self_state.bundle.v1.schema.json
  */
 export interface SelfStateBundle {
   schema: 'heimgeist.self_state.bundle.v1';
@@ -415,6 +417,7 @@ export interface HeimgeistInsightEvent {
 
 /**
  * Event Contract for Self-State Snapshots
+ * Canonical Contract: metarepo/contracts/events/heimgeist.self_state.snapshot.v1.schema.json
  */
 export interface HeimgeistSelfStateSnapshotEvent {
   kind: 'heimgeist.self_state.snapshot';
