@@ -604,7 +604,7 @@ export class Heimgeist {
                 steps: [
                     {
                         order: 1,
-                        tool: 'notify-slack',
+                        tool: 'heimgeist-notify',
                         parameters: { message: `CRITICAL ISSUE detected but Heimgeist is fatigued/stressed. Manual intervention required. Reason: ${safetyCheck.reason}` },
                         description: 'Emergency Notification (Degraded Mode due to Self-State)',
                         status: 'pending'
@@ -1316,6 +1316,18 @@ export class Heimgeist {
                 }
             }
             // 'status' and 'reflect' (query) are just logged or handled by state persistence
+        }
+        action.status = 'executed';
+        action.steps.forEach(s => s.status = 'completed');
+        await this.saveAction(action);
+        return true;
+    }
+
+    // Special handling for internal notifications (degraded mode)
+    if (action.steps.some(s => s.tool === 'heimgeist-notify')) {
+        const step = action.steps.find(s => s.tool === 'heimgeist-notify');
+        if (step) {
+            this.logger.warn(`[HEIMGEIST-NOTIFY]: ${step.parameters.message}`);
         }
         action.status = 'executed';
         action.steps.forEach(s => s.status = 'completed');

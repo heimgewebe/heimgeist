@@ -11,7 +11,8 @@ import { HeimgewebeCommand } from '../types';
  * - @heimgewebe/metarepo /link-epic EPIC-123
  */
 export class CommandParser {
-  private static readonly MENTION_PATTERN = /@heimgewebe\/(\w+)\s+\/(\S+)(?:\s+([^\n@]*))?/g;
+  // Matches @heimgewebe/<tool> OR @self (alias)
+  private static readonly MENTION_PATTERN = /@(?:heimgewebe\/(\w+)|(self))\s+\/(\S+)(?:\s+([^\n@]*))?/g;
 
   /**
    * Parse commands from a comment text
@@ -29,9 +30,17 @@ export class CommandParser {
     const matches = text.matchAll(this.MENTION_PATTERN);
 
     for (const match of matches) {
-      const tool = match[1] as HeimgewebeCommand['tool'];
-      const command = match[2];
-      const argsStr = match[3]?.trim() || '';
+      // Group 1: tool name from @heimgewebe/<tool>
+      // Group 2: "self" from @self alias
+      // Group 3: command
+      // Group 4: args
+      let tool = (match[1] || match[2]) as HeimgewebeCommand['tool'];
+
+      // Normalize 'self' alias if needed, though 'self' is a valid tool name in type
+      if (tool === 'self') tool = 'self';
+
+      const command = match[3];
+      const argsStr = match[4]?.trim() || '';
       const args = argsStr ? argsStr.split(/\s+/) : [];
 
       // Validate tool
@@ -57,8 +66,7 @@ export class CommandParser {
    */
   private static isValidTool(tool: string): tool is HeimgewebeCommand['tool'] {
     // Note: 'self' is treated as a shorthand for 'heimgeist' context-aware commands
-    // The mention pattern strictly requires `@heimgewebe/<tool>`, so usage must be
-    // `@heimgewebe/self /status`. Plain `@self` is NOT supported by the current regex.
+    // Supported: @heimgewebe/self OR @self
     return ['sichter', 'wgx', 'heimlern', 'metarepo', 'heimgeist', 'self'].includes(tool);
   }
 
