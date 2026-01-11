@@ -25,6 +25,7 @@ import {
   Pattern,
   HeimgewebeCommand,
   HeimgeistInsightEvent,
+  HeimgeistSelfStateSnapshotEvent,
   ArchiveResult,
   HeimgeistInsightDataV1,
 } from '../types';
@@ -160,6 +161,7 @@ export class Heimgeist {
   public updateSelfModel(signals: SystemSignals): void {
       this.selfModel.update(signals);
       this.writeSelfStateBundle();
+      void this.publishSelfStateSnapshot();
   }
 
   /**
@@ -170,6 +172,30 @@ export class Heimgeist {
           const state = this.selfModel.getState();
           const history = this.selfModel.getHistory(50);
           this.artifactWriter.write(state, history);
+      }
+  }
+
+  /**
+   * Publish Self-State snapshot event to Chronik
+   */
+  private async publishSelfStateSnapshot(): Promise<void> {
+      if (!this.chronik) return;
+
+      const state = this.selfModel.getState();
+      const event: HeimgeistSelfStateSnapshotEvent = {
+          kind: 'heimgeist.self_state.snapshot',
+          version: 1,
+          id: uuidv4(),
+          meta: {
+              occurred_at: new Date().toISOString(),
+          },
+          data: state
+      };
+
+      try {
+          await this.chronik.append(event);
+      } catch (error) {
+          this.logger.warn(`Failed to publish self-state snapshot: ${error}`);
       }
   }
 
@@ -1298,6 +1324,7 @@ export class Heimgeist {
     // In a real system, executeAction would return a Result object.
     this.selfModel.reflect(true);
     this.writeSelfStateBundle();
+    void this.publishSelfStateSnapshot();
 
     return true;
   }

@@ -414,11 +414,24 @@ export interface HeimgeistInsightEvent {
 }
 
 /**
+ * Event Contract for Self-State Snapshots
+ */
+export interface HeimgeistSelfStateSnapshotEvent {
+  kind: 'heimgeist.self_state.snapshot';
+  version: number; // 1
+  id: string; // uuid
+  meta: {
+    occurred_at: string; // ISO 8601
+  };
+  data: SelfModelState;
+}
+
+/**
  * Interface for Chronik Client
  */
 export interface ChronikClient {
   nextEvent(types: string[]): Promise<ChronikEvent | null>;
-  append(event: ChronikEvent | HeimgeistInsightEvent): Promise<void>;
+  append(event: ChronikEvent | HeimgeistInsightEvent | HeimgeistSelfStateSnapshotEvent): Promise<void>;
 }
 
 /**

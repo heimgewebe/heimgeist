@@ -57,11 +57,8 @@ export class CommandParser {
    */
   private static isValidTool(tool: string): tool is HeimgewebeCommand['tool'] {
     // Note: 'self' is treated as a shorthand for 'heimgeist' context-aware commands
-    // But since the regex captures the tool name, we might want to support @self or @heimgeist /self-...
-    // The issue says "@self.status".
-    // If the mention is "@self", then tool="self".
-    // Let's assume the user can write `@heimgewebe/self /status` or the regex allows just `@self`.
-    // The current regex is `@heimgewebe/(\w+)`. So `@heimgewebe/self`.
+    // The mention pattern strictly requires `@heimgewebe/<tool>`, so usage must be
+    // `@heimgewebe/self /status`. Plain `@self` is NOT supported by the current regex.
     return ['sichter', 'wgx', 'heimlern', 'metarepo', 'heimgeist', 'self'].includes(tool);
   }
 
