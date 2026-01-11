@@ -4,14 +4,12 @@ import { SelfStateStore } from './self_state_store';
 export class SelfModel {
   private state: SelfModelState;
   private store: SelfStateStore;
-  private lastPersistedState?: string; // JSON string of last persisted state for comparison
-  private lastPersistedTime: number = 0;
+  private lastPersistedState?: SelfModelState; // Object snapshot for delta comparison
 
   // Thresholds for heuristics
   private readonly FATIGUE_THRESHOLD = 0.75;
   private readonly CONFIDENCE_THRESHOLD = 0.35;
   private readonly RISK_TENSION_THRESHOLD = 0.6;
-  private readonly MIN_PERSIST_INTERVAL_MS = 10000; // 10 seconds
 
   constructor(initialState?: SelfModelState) {
     this.store = new SelfStateStore();
@@ -106,23 +104,31 @@ export class SelfModel {
     // 4. Update Autonomy Level with Hysteresis
     this.updateAutonomyLevel();
 
-    // Persist with Throttling
-    const now = Date.now();
-    const currentStateStr = JSON.stringify({
-        c: this.state.confidence.toFixed(2),
-        f: this.state.fatigue.toFixed(2),
-        r: this.state.risk_tension.toFixed(2),
-        a: this.state.autonomy_level
-    });
+    // Persist with Throttling (Delta-based)
+    // Persist only if:
+    // - Autonomy Level changes
+    // - |Delta confidence| >= 0.05
+    // - |Delta risk_tension| >= 0.1
+    // - First run (no lastPersistedState)
 
-    const timeSinceLastPersist = now - this.lastPersistedTime;
-    const hasChanged = currentStateStr !== this.lastPersistedState;
-    const shouldPersist = hasChanged || timeSinceLastPersist > this.MIN_PERSIST_INTERVAL_MS;
+    let shouldPersist = false;
+
+    if (!this.lastPersistedState) {
+        shouldPersist = true;
+    } else {
+        const deltaConfidence = Math.abs(this.state.confidence - this.lastPersistedState.confidence);
+        const deltaRisk = Math.abs(this.state.risk_tension - this.lastPersistedState.risk_tension);
+        const autonomyChanged = this.state.autonomy_level !== this.lastPersistedState.autonomy_level;
+
+        if (autonomyChanged || deltaConfidence >= 0.05 || deltaRisk >= 0.1) {
+            shouldPersist = true;
+        }
+    }
 
     if (shouldPersist) {
         this.store.save(this.state);
-        this.lastPersistedState = currentStateStr;
-        this.lastPersistedTime = now;
+        // Deep copy state for next comparison
+        this.lastPersistedState = JSON.parse(JSON.stringify(this.state));
         return true;
     }
 
