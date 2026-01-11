@@ -35,7 +35,7 @@ import { Logger, defaultLogger } from './logger';
 import { CommandParser } from './command-parser';
 import { SelfModel } from './self_model';
 import { ArtifactWriter } from './artifact_writer';
-import { SystemSignals, SelfModelState } from '../types';
+import { SystemSignals } from '../types';
 
 /**
  * Insight context codes for identifying specific types of issues

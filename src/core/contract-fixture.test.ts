@@ -2,7 +2,7 @@ import Ajv from 'ajv';
 import addFormats from 'ajv-formats';
 import * as fs from 'fs';
 import * as path from 'path';
-import { SelfStateBundle, SelfModelState } from '../types';
+import { SelfStateBundle } from '../types';
 
 // Load schemas from local assets (mirror of metarepo)
 const loadSchema = (name: string) => {

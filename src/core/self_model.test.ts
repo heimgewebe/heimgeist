@@ -1,8 +1,6 @@
 import { SelfModel } from './self_model';
-import { SystemSignals, SelfModelState } from '../types';
+import { SystemSignals } from '../types';
 import * as fs from 'fs';
-import * as path from 'path';
-import { SELF_MODEL_DIR } from '../config/state-paths';
 
 // Mock fs to avoid actual file writing during tests
 jest.mock('fs');
