@@ -52,13 +52,23 @@ export class ArtifactWriter {
 
     try {
       fs.writeFileSync(tmpFilepath, JSON.stringify(bundle, null, 2));
+
+      // Robust atomic replace: unlink target if exists to handle cross-device/windows issues safer
+      if (fs.existsSync(filepath)) {
+          try {
+              fs.unlinkSync(filepath);
+          } catch (unlinkError) {
+              // If unlink fails, rename might still work (or fail), proceed to try rename
+          }
+      }
       fs.renameSync(tmpFilepath, filepath);
     } catch (e) {
       console.error(`Failed to write artifact bundle: ${e}`);
-      // Try to cleanup tmp file
+    } finally {
+      // Ensure cleanup of tmp file if it still exists (e.g. rename failed)
       try {
         if (fs.existsSync(tmpFilepath)) fs.unlinkSync(tmpFilepath);
-      } catch (ignored) { /* empty */ }
+      } catch (ignored) { /* ignore cleanup error */ }
     }
   }
 

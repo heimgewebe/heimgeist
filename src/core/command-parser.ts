@@ -41,7 +41,7 @@ export class CommandParser {
 
       const command = match[3];
       const argsStr = match[4]?.trim() || '';
-      const args = argsStr ? argsStr.split(/\s+/) : [];
+      const args = this.parseArgs(argsStr);
 
       // Validate tool
       if (!this.isValidTool(tool)) {
@@ -59,6 +59,56 @@ export class CommandParser {
     }
 
     return commands;
+  }
+
+  /**
+   * Parse arguments string into array, respecting quotes
+   */
+  private static parseArgs(argsStr: string): string[] {
+    const args: string[] = [];
+    let currentArg = '';
+    let inQuote: string | null = null;
+    let escaped = false;
+
+    for (let i = 0; i < argsStr.length; i++) {
+      const char = argsStr[i];
+
+      if (escaped) {
+        currentArg += char;
+        escaped = false;
+        continue;
+      }
+
+      if (char === '\\') {
+        escaped = true;
+        continue;
+      }
+
+      if (inQuote) {
+        if (char === inQuote) {
+          inQuote = null;
+        } else {
+          currentArg += char;
+        }
+      } else {
+        if (char === '"' || char === "'") {
+          inQuote = char;
+        } else if (/\s/.test(char)) {
+          if (currentArg.length > 0) {
+            args.push(currentArg);
+            currentArg = '';
+          }
+        } else {
+          currentArg += char;
+        }
+      }
+    }
+
+    if (currentArg.length > 0) {
+      args.push(currentArg);
+    }
+
+    return args;
   }
 
   /**

@@ -76,18 +76,25 @@ describe('CommandParser', () => {
       expect(commands[1].tool).toBe('wgx');
     });
 
-    it('should handle special characters in args', () => {
+    it('should handle quoted args with special characters', () => {
       const text = '@heimgewebe/sichter /deep --filter="src/**/*.ts"';
       const commands = CommandParser.parseComment(text, context);
       expect(commands).toHaveLength(1);
-      expect(commands[0].args).toEqual(['--filter="src/**/*.ts"']);
+      expect(commands[0].args).toEqual(['--filter=src/**/*.ts']);
     });
 
-    it('should handle SQL injection like characters in args', () => {
+    it('should handle quoted args with spaces', () => {
       const text = '@heimgewebe/heimlern /pattern-bad "SQL; DROP TABLE"';
       const commands = CommandParser.parseComment(text, context);
       expect(commands).toHaveLength(1);
-      expect(commands[0].args[0]).toContain('SQL;');
+      expect(commands[0].args).toEqual(['SQL; DROP TABLE']);
+    });
+
+    it('should handle mixed quotes', () => {
+      const text = "@heimgewebe/test /cmd 'single quoted' \"double quoted\"";
+      const commands = CommandParser.parseComment(text, context);
+      expect(commands).toHaveLength(1);
+      expect(commands[0].args).toEqual(['single quoted', 'double quoted']);
     });
 
     it('should return empty array for no commands', () => {
