@@ -4,11 +4,14 @@ import { SelfStateStore } from './self_state_store';
 export class SelfModel {
   private state: SelfModelState;
   private store: SelfStateStore;
+  private lastPersistedState?: string; // JSON string of last persisted state for comparison
+  private lastPersistedTime: number = 0;
 
   // Thresholds for heuristics
   private readonly FATIGUE_THRESHOLD = 0.75;
   private readonly CONFIDENCE_THRESHOLD = 0.35;
   private readonly RISK_TENSION_THRESHOLD = 0.6;
+  private readonly MIN_PERSIST_INTERVAL_MS = 10000; // 10 seconds
 
   constructor(initialState?: SelfModelState) {
     this.store = new SelfStateStore();
@@ -42,9 +45,10 @@ export class SelfModel {
 
   /**
    * Update the self-model based on system signals
+   * Returns true if state was persisted (changed significantly or timeout), false otherwise.
    * Implements: "Initiale Ableitung (heuristisch, explizit): CI-Fehlerquote, Anzahl offener Actions..."
    */
-  public update(signals: SystemSignals): void {
+  public update(signals: SystemSignals): boolean {
     const basis_signals: string[] = [];
 
     // 1. Calculate Fatigue
@@ -102,8 +106,27 @@ export class SelfModel {
     // 4. Update Autonomy Level with Hysteresis
     this.updateAutonomyLevel();
 
-    // Persist
-    this.store.save(this.state);
+    // Persist with Throttling
+    const now = Date.now();
+    const currentStateStr = JSON.stringify({
+        c: this.state.confidence.toFixed(2),
+        f: this.state.fatigue.toFixed(2),
+        r: this.state.risk_tension.toFixed(2),
+        a: this.state.autonomy_level
+    });
+
+    const timeSinceLastPersist = now - this.lastPersistedTime;
+    const hasChanged = currentStateStr !== this.lastPersistedState;
+    const shouldPersist = hasChanged || timeSinceLastPersist > this.MIN_PERSIST_INTERVAL_MS;
+
+    if (shouldPersist) {
+        this.store.save(this.state);
+        this.lastPersistedState = currentStateStr;
+        this.lastPersistedTime = now;
+        return true;
+    }
+
+    return false;
   }
 
   /**

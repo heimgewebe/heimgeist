@@ -159,9 +159,11 @@ export class Heimgeist {
    * Update Self-Model with system signals
    */
   public updateSelfModel(signals: SystemSignals): void {
-      this.selfModel.update(signals);
-      this.writeSelfStateBundle();
-      void this.publishSelfStateSnapshot();
+      const persisted = this.selfModel.update(signals);
+      if (persisted) {
+          this.writeSelfStateBundle();
+          void this.publishSelfStateSnapshot();
+      }
   }
 
   /**
@@ -1339,10 +1341,12 @@ export class Heimgeist {
     await this.saveAction(action);
 
     // Reflect on outcome
-    // We assume successful execution here means the *attempt* was successful.
-    // Real success would depend on the tool's result, which we don't have here in this mock execution.
-    // In a real system, executeAction would return a Result object.
+    // Since this is a mock execution, we treat "canExecute" as success.
+    // In a real system, this would be `toolResult.success`.
+    // We pass `true` explicitly but the architecture demands honesty.
     this.selfModel.reflect(true);
+
+    // Always persist after reflection as this is a significant event
     this.writeSelfStateBundle();
     void this.publishSelfStateSnapshot();
 

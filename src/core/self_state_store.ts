@@ -34,8 +34,35 @@ export class SelfStateStore {
 
     try {
       fs.writeFileSync(filepath, JSON.stringify(snapshot, null, 2));
+      // Cleanup old snapshots, keep last 50
+      this.cleanup(50);
     } catch (e) {
       console.error(`Failed to persist self-state snapshot: ${e}`);
+    }
+  }
+
+  /**
+   * Cleanup old snapshots
+   */
+  public cleanup(keep: number): void {
+    if (!fs.existsSync(SELF_MODEL_DIR)) return;
+
+    try {
+      const files = fs.readdirSync(SELF_MODEL_DIR)
+        .filter(f => f.startsWith('snapshot-') && f.endsWith('.json'))
+        .sort()
+        .reverse(); // Newest first
+
+      if (files.length > keep) {
+        const toDelete = files.slice(keep);
+        for (const file of toDelete) {
+          try {
+            fs.unlinkSync(path.join(SELF_MODEL_DIR, file));
+          } catch (ignored) { /* empty */ }
+        }
+      }
+    } catch (e) {
+      console.error(`Failed to cleanup self-state snapshots: ${e}`);
     }
   }
 
