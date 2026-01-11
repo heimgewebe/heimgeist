@@ -216,12 +216,22 @@ export class SelfModel {
    * Manual set
    */
   public setAutonomy(level: 'dormant' | 'aware' | 'reflective' | 'critical'): void {
+      const MAX_BASIS_SIGNALS = 50;
+
       this.state.autonomy_level = level;
-      this.state.basis_signals.push(`Manual override to ${level}`);
-      // Limit unbounded growth
-      if (this.state.basis_signals.length > 20) {
-          this.state.basis_signals = this.state.basis_signals.slice(-20);
+
+      // Defensive initialization
+      if (!Array.isArray(this.state.basis_signals)) {
+          this.state.basis_signals = [];
       }
+
+      this.state.basis_signals.push(`Manual override to ${level}`);
+
+      // Limit unbounded growth
+      if (this.state.basis_signals.length > MAX_BASIS_SIGNALS) {
+          this.state.basis_signals = this.state.basis_signals.slice(-MAX_BASIS_SIGNALS);
+      }
+
       this.state.last_updated = new Date().toISOString();
       this.store.save(this.state);
   }
