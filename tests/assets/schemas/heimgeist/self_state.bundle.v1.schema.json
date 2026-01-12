@@ -1,0 +1,25 @@
+{
+  "$id": "https://heimgewebe/contracts/heimgeist/self_state.bundle.v1.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Heimgeist Self-State Bundle Artifact V1",
+  "description": "Artifact für Leitstand: current + history (Snapshots). Kein Stream-Event.",
+  "type": "object",
+  "required": ["schema", "current", "history"],
+  "properties": {
+    "schema": { "const": "heimgeist.self_state.bundle.v1" },
+    "current": { "$ref": "https://heimgewebe/contracts/heimgeist/self_state.schema.json" },
+    "history": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["timestamp", "state"],
+        "properties": {
+          "timestamp": { "type": "string", "format": "date-time" },
+          "state": { "$ref": "https://heimgewebe/contracts/heimgeist/self_state.schema.json" }
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "additionalProperties": false
+}

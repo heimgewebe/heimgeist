@@ -57,7 +57,55 @@ export enum EventType {
   KnowledgeObservatoryPublished = 'knowledge.observatory.published.v1',
   HeimgeistInsight = 'heimgeist.insight.v1',
   HeimgeistActions = 'heimgeist.actions.v1',
+  HeimgeistSelfStateSnapshot = 'heimgeist.self_state.snapshot',
   Custom = 'custom',
+}
+
+/**
+ * Self-Model state interface
+ * Canonical Contract: metarepo/contracts/heimgeist/self_state.schema.json
+ */
+export interface SelfModelState {
+  confidence: number;        // 0.0 – 1.0
+  fatigue: number;           // 0.0 – 1.0
+  risk_tension: number;      // 0.0 – 1.0
+  autonomy_level: 'dormant' | 'aware' | 'reflective' | 'critical';
+  last_updated: string;      // ISO 8601
+  basis_signals: string[];   // Transparency
+}
+
+/**
+ * A persistent snapshot of the self-model state
+ */
+export interface SelfStateSnapshot {
+  timestamp: string; // ISO 8601
+  state: SelfModelState;
+}
+
+/**
+ * Bundle of Self-State for external consumption (Artifact)
+ * Canonical Contract: metarepo/contracts/heimgeist/self_state.bundle.v1.schema.json
+ */
+export interface SelfStateBundle {
+  schema: 'heimgeist.self_state.bundle.v1';
+  current: SelfModelState;
+  history: SelfStateSnapshot[];
+}
+
+/**
+ * System signals for self-model updates
+ * Internal representation of system health.
+ * Ideally mapped from `hauski/system.signals.v1` (metarepo).
+ * Future alignment: add `occurred_at`, `source` meta-fields.
+ */
+export interface SystemSignals {
+  cpu_load?: number;
+  memory_pressure?: number;
+  ci_failure_rate?: number;
+  open_actions_count?: number;
+  conflicts_count?: number;
+  risk_score?: number;
+  error_rate?: number;
 }
 
 /**
@@ -188,6 +236,7 @@ export interface StatusResponse {
   insightsGenerated: number;
   actionsExecuted: number;
   lastActivity?: Date;
+  self_state?: SelfModelState;
 }
 
 /**
@@ -219,7 +268,7 @@ export interface ExplainResponse {
 export interface HeimgewebeCommand {
   id: string;
   timestamp: Date;
-  tool: 'sichter' | 'wgx' | 'heimlern' | 'metarepo' | 'heimgeist';
+  tool: 'sichter' | 'wgx' | 'heimlern' | 'metarepo' | 'heimgeist' | 'self';
   command: string;
   args: string[];
   context: {
@@ -370,11 +419,25 @@ export interface HeimgeistInsightEvent {
 }
 
 /**
+ * Event Contract for Self-State Snapshots
+ * Canonical Contract: metarepo/contracts/events/heimgeist.self_state.snapshot.v1.schema.json
+ */
+export interface HeimgeistSelfStateSnapshotEvent {
+  kind: 'heimgeist.self_state.snapshot';
+  version: number; // 1
+  id: string; // uuid
+  meta: {
+    occurred_at: string; // ISO 8601
+  };
+  data: SelfModelState;
+}
+
+/**
  * Interface for Chronik Client
  */
 export interface ChronikClient {
   nextEvent(types: string[]): Promise<ChronikEvent | null>;
-  append(event: ChronikEvent | HeimgeistInsightEvent): Promise<void>;
+  append(event: ChronikEvent | HeimgeistInsightEvent | HeimgeistSelfStateSnapshotEvent): Promise<void>;
 }
 
 /**

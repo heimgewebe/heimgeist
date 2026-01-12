@@ -11,7 +11,8 @@ import { HeimgewebeCommand } from '../types';
  * - @heimgewebe/metarepo /link-epic EPIC-123
  */
 export class CommandParser {
-  private static readonly MENTION_PATTERN = /@heimgewebe\/(\w+)\s+\/(\S+)(?:\s+([^\n@]*))?/g;
+  // Matches @heimgewebe/<tool> OR @self (alias)
+  private static readonly MENTION_PATTERN = /@(?:heimgewebe\/(\w+)|(self))\s+\/(\S+)(?:\s+([^\n@]*))?/g;
 
   /**
    * Parse commands from a comment text
@@ -29,10 +30,18 @@ export class CommandParser {
     const matches = text.matchAll(this.MENTION_PATTERN);
 
     for (const match of matches) {
-      const tool = match[1] as HeimgewebeCommand['tool'];
-      const command = match[2];
-      const argsStr = match[3]?.trim() || '';
-      const args = argsStr ? argsStr.split(/\s+/) : [];
+      // Group 1: tool name from @heimgewebe/<tool>
+      // Group 2: "self" from @self alias
+      // Group 3: command
+      // Group 4: args
+      let tool = (match[1] || match[2]) as HeimgewebeCommand['tool'];
+
+      // Normalize 'self' alias if needed, though 'self' is a valid tool name in type
+      if (tool === 'self') tool = 'self';
+
+      const command = match[3];
+      const argsStr = match[4]?.trim() || '';
+      const args = this.parseArgs(argsStr);
 
       // Validate tool
       if (!this.isValidTool(tool)) {
@@ -53,10 +62,62 @@ export class CommandParser {
   }
 
   /**
+   * Parse arguments string into array, respecting quotes
+   */
+  private static parseArgs(argsStr: string): string[] {
+    const args: string[] = [];
+    let currentArg = '';
+    let inQuote: string | null = null;
+    let escaped = false;
+
+    for (let i = 0; i < argsStr.length; i++) {
+      const char = argsStr[i];
+
+      if (escaped) {
+        currentArg += char;
+        escaped = false;
+        continue;
+      }
+
+      if (char === '\\') {
+        escaped = true;
+        continue;
+      }
+
+      if (inQuote) {
+        if (char === inQuote) {
+          inQuote = null;
+        } else {
+          currentArg += char;
+        }
+      } else {
+        if (char === '"' || char === "'") {
+          inQuote = char;
+        } else if (/\s/.test(char)) {
+          if (currentArg.length > 0) {
+            args.push(currentArg);
+            currentArg = '';
+          }
+        } else {
+          currentArg += char;
+        }
+      }
+    }
+
+    if (currentArg.length > 0) {
+      args.push(currentArg);
+    }
+
+    return args;
+  }
+
+  /**
    * Check if tool name is valid
    */
   private static isValidTool(tool: string): tool is HeimgewebeCommand['tool'] {
-    return ['sichter', 'wgx', 'heimlern', 'metarepo', 'heimgeist'].includes(tool);
+    // Note: 'self' is treated as a shorthand for 'heimgeist' context-aware commands
+    // Supported: @heimgewebe/self OR @self
+    return ['sichter', 'wgx', 'heimlern', 'metarepo', 'heimgeist', 'self'].includes(tool);
   }
 
   /**
@@ -85,9 +146,51 @@ export class CommandParser {
         return this.validateMetarepoCommand(command);
       case 'heimgeist':
         return this.validateHeimgeistCommand(command);
+      case 'self':
+        return this.validateSelfCommand(command);
       default:
         return { valid: false, error: `Unknown tool: ${command.tool}` };
     }
+  }
+
+  /**
+   * Validate self commands
+   */
+  private static validateSelfCommand(command: HeimgewebeCommand): {
+    valid: boolean;
+    error?: string;
+  } {
+    const validCommands = ['status', 'reflect', 'reset', 'set'];
+
+    if (!validCommands.includes(command.command)) {
+      return {
+        valid: false,
+        error: `Invalid self command. Valid: ${validCommands.join(', ')}`,
+      };
+    }
+
+    if (command.command === 'set') {
+        // e.g. /set autonomy=aware
+        // We expect key=value arguments
+        if (command.args.length === 0) {
+            return { valid: false, error: 'set command requires key=value arguments' };
+        }
+        // Basic check for autonomy=...
+        const autonomyArg = command.args.find(a => a.startsWith('autonomy='));
+        if (autonomyArg) {
+            const level = autonomyArg.split('=')[1];
+            if (!['dormant', 'aware', 'reflective', 'critical'].includes(level)) {
+                return { valid: false, error: `Invalid autonomy level: ${level}` };
+            }
+        }
+    }
+
+    if (command.command === 'reflect') {
+        // Optional last=10
+        // No strict check needed for optional args
+    }
+
+    return { valid: true };
   }
 
   /**

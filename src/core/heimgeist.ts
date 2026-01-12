@@ -25,13 +25,17 @@ import {
   Pattern,
   HeimgewebeCommand,
   HeimgeistInsightEvent,
+  HeimgeistSelfStateSnapshotEvent,
   ArchiveResult,
   HeimgeistInsightDataV1,
 } from '../types';
 import { loadConfig, getAutonomyLevelName } from '../config';
-import { STATE_DIR, INSIGHTS_DIR, ACTIONS_DIR } from '../config/state-paths';
+import { STATE_DIR, INSIGHTS_DIR, ACTIONS_DIR, ARTIFACTS_DIR } from '../config/state-paths';
 import { Logger, defaultLogger } from './logger';
 import { CommandParser } from './command-parser';
+import { SelfModel } from './self_model';
+import { ArtifactWriter } from './artifact_writer';
+import { SystemSignals } from '../types';
 
 /**
  * Insight context codes for identifying specific types of issues
@@ -63,6 +67,8 @@ export class Heimgeist {
   private lastActivity?: Date;
   private logger: Logger;
   private chronik?: ChronikClient;
+  private selfModel: SelfModel;
+  private artifactWriter: ArtifactWriter;
 
   constructor(config?: HeimgeistConfig, logger: Logger = defaultLogger, chronik?: ChronikClient) {
     // console.log('Heimgeist constructor config:', config);
@@ -71,6 +77,8 @@ export class Heimgeist {
     this.logger = logger;
     this.chronik = chronik;
     this.startTime = new Date();
+    this.selfModel = new SelfModel();
+    this.artifactWriter = new ArtifactWriter(ARTIFACTS_DIR);
 
     if (this.config.persistenceEnabled !== false) {
       this.loadState();
@@ -143,7 +151,54 @@ export class Heimgeist {
       insightsGenerated: this.insights.size,
       actionsExecuted: this.actionsExecuted,
       lastActivity: this.lastActivity,
+      self_state: this.selfModel.getState(),
     };
+  }
+
+  /**
+   * Update Self-Model with system signals
+   */
+  public updateSelfModel(signals: SystemSignals): void {
+      const persisted = this.selfModel.update(signals);
+      if (persisted) {
+          this.writeSelfStateBundle();
+          void this.publishSelfStateSnapshot();
+      }
+  }
+
+  /**
+   * Write the Self-State artifact bundle
+   */
+  private writeSelfStateBundle(): void {
+      if (this.config.persistenceEnabled !== false) {
+          const state = this.selfModel.getState();
+          const history = this.selfModel.getHistory(50);
+          this.artifactWriter.write(state, history);
+      }
+  }
+
+  /**
+   * Publish Self-State snapshot event to Chronik
+   */
+  private async publishSelfStateSnapshot(): Promise<void> {
+      if (!this.chronik) return;
+
+      const state = this.selfModel.getState();
+      const event: HeimgeistSelfStateSnapshotEvent = {
+          kind: 'heimgeist.self_state.snapshot',
+          version: 1,
+          id: uuidv4(),
+          meta: {
+              occurred_at: new Date().toISOString(),
+          },
+          data: state
+      };
+
+      try {
+          await this.chronik.append(event);
+      } catch (error) {
+          this.logger.warn(`Failed to publish self-state snapshot: ${error}`);
+      }
   }
 
   /**
@@ -533,6 +588,37 @@ export class Heimgeist {
   private planAction(insight: Insight): PlannedAction | null {
     const requiresConfirmation = this.config.autonomyLevel < AutonomyLevel.Operative;
 
+    // Safety Gate: Check Self-Model before planning high-risk actions
+    const safetyCheck = this.selfModel.checkSafetyGate();
+    if (!safetyCheck.safe) {
+        // Log warning and maybe return null or a restricted action
+        this.logger.warn(`Safety Gate: Preventing action planning due to self-state: ${safetyCheck.reason}`);
+
+        // For Critical risks, we fallback to a degraded "Notify Only" mode.
+        // We do NOT propose self-modifying actions (wgx-guard, etc.) when the system is unstable.
+        if (insight.severity === RiskSeverity.Critical) {
+            return {
+                id: uuidv4(),
+                timestamp: new Date(),
+                trigger: insight,
+                steps: [
+                    {
+                        order: 1,
+                        tool: 'heimgeist-notify',
+                        parameters: { message: `CRITICAL ISSUE detected but Heimgeist is fatigued/stressed. Manual intervention required. Reason: ${safetyCheck.reason}` },
+                        description: 'Emergency Notification (Degraded Mode due to Self-State)',
+                        status: 'pending'
+                    }
+                ],
+                requiresConfirmation: true, // Force human in the loop
+                status: 'pending'
+            };
+        }
+
+        // Non-critical risks are ignored when safety gate is closed
+        return null;
+    }
+
     // Plan actions based on insight type
     if (insight.type === 'risk' && insight.severity === RiskSeverity.Critical) {
       // Specialized action plan for Critical CI Failure on Main
@@ -658,9 +744,31 @@ export class Heimgeist {
     }
 
     // Handle Command insights
-    if (insight.type === 'suggestion' && insight.title.startsWith('Command Received:')) {
-      const command = insight.context?.command as HeimgewebeCommand;
+    // Robust routing: check context.command instead of fragile title string matching
+    if (insight.type === 'suggestion' && insight.context?.command) {
+      const command = insight.context.command as HeimgewebeCommand;
       if (command) {
+        // PRIORITY ROUTING: Self Model Commands
+        // We must check for 'self' tool first, otherwise the generic handler might capture it
+        if (command.tool === 'self') {
+            return {
+                id: uuidv4(),
+                timestamp: new Date(),
+                trigger: insight,
+                steps: [
+                    {
+                        order: 1,
+                        tool: 'heimgeist-self-update',
+                        parameters: { command: command.command, args: command.args },
+                        description: `Update Self Model: ${command.command}`,
+                        status: 'pending'
+                    }
+                ],
+                requiresConfirmation: false,
+                status: 'approved'
+            };
+        }
+
         // If command is for heimgeist /analyse, we map it
         if (command.tool === 'heimgeist' && command.command === 'analyse') {
           return {
@@ -1180,23 +1288,76 @@ export class Heimgeist {
     const action = this.plannedActions.get(actionId);
     if (!action) return false;
 
-    // Only allow execution if status is approved or if it's pending and doesn't require confirmation
-    // Note: The caller (Director/Loop) should ideally check policy before calling this,
-    // but we enforce the state transition rules here.
-    const canExecute =
-      action.status === 'approved' ||
-      (action.status === 'pending' && !action.requiresConfirmation);
+    try {
+      let executed = false;
 
-    if (!canExecute) return false;
+      // Special handling for internal self-model actions
+      if (action.steps.some((s) => s.tool === 'heimgeist-self-update')) {
+        const step = action.steps.find((s) => s.tool === 'heimgeist-self-update');
+        if (step) {
+          const cmd = step.parameters.command as string;
+          const args = (step.parameters.args as string[]) || [];
 
-    action.status = 'executed';
-    action.steps.forEach((step) => {
-      step.status = 'completed';
-    });
-    this.actionsExecuted++;
+          if (cmd === 'reset') this.selfModel.reset();
+          if (cmd === 'set' && args) {
+            const autonomyArg = args.find((a) => a.startsWith('autonomy='));
+            if (autonomyArg) {
+              const val = autonomyArg.split('=')[1] as any;
+              this.selfModel.setAutonomy(val);
+            }
+          }
+        }
+        executed = true;
+      }
+      // Special handling for internal notifications (degraded mode)
+      else if (action.steps.some((s) => s.tool === 'heimgeist-notify')) {
+        // Enforce confirmation policy even for notify commands
+        const canExecute =
+          action.status === 'approved' ||
+          (action.status === 'pending' && !action.requiresConfirmation);
 
-    await this.saveAction(action);
-    return true;
+        if (canExecute) {
+            const step = action.steps.find((s) => s.tool === 'heimgeist-notify');
+            if (step) {
+            this.logger.warn(`[HEIMGEIST-NOTIFY]: ${step.parameters.message}`);
+            }
+            executed = true;
+        } else {
+            return false;
+        }
+      } else {
+        // Standard check
+        const canExecute =
+          action.status === 'approved' ||
+          (action.status === 'pending' && !action.requiresConfirmation);
+
+        if (!canExecute) return false;
+
+        this.actionsExecuted++;
+        executed = true;
+      }
+
+      if (executed) {
+        action.status = 'executed';
+        action.steps.forEach((s) => (s.status = 'completed'));
+        await this.saveAction(action);
+
+        // Reflect success
+        this.selfModel.reflect(true);
+        this.writeSelfStateBundle();
+        void this.publishSelfStateSnapshot();
+
+        return true;
+      }
+
+      return false;
+    } catch (error) {
+      this.logger.error(`Failed to execute action ${actionId}: ${error}`);
+      this.selfModel.reflect(false); // Reflect failure
+      this.writeSelfStateBundle();
+      void this.publishSelfStateSnapshot();
+      return false;
+    }
   }
 
   /**

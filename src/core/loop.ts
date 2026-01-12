@@ -52,6 +52,17 @@ export class HeimgeistCoreLoop {
   }
 
   async tick() {
+    // 0. Meta-Cognitive Update
+    // Fetch signals (mocked for now, in real impl would come from HausKI/Metrics)
+    // "vor Analyse: self_model.update(signals)"
+    const mockSignals = {
+        // Simple mock: stable load to prevent self-state noise
+        cpu_load: 20,
+        memory_pressure: 40,
+        // We could calculate failure rate from heimgeist stats if exposed
+    };
+    this.heimgeist.updateSelfModel(mockSignals);
+
     // 1. Pull
     const event = await this.chronik.nextEvent([
       EventType.Command, // Added Command
