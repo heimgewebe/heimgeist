@@ -1,5 +1,5 @@
 import { Heimgeist } from './heimgeist';
-import { ChronikClient, SystemSignals, HeimgeistSelfStateSnapshotEvent } from '../types';
+import { ChronikClient, SystemSignals, HeimgeistSelfStateSnapshotEvent, HeimgeistRole } from '../types';
 import { defaultLogger } from './logger';
 import { createHeimgeist } from './heimgeist';
 import * as fs from 'fs';
@@ -24,7 +24,14 @@ describe('Heimgeist Snapshot Events', () => {
       append: jest.fn().mockResolvedValue(undefined),
     };
 
-    heimgeist = createHeimgeist(undefined, defaultLogger, mockChronik);
+    heimgeist = createHeimgeist({
+      autonomyLevel: 2,
+      activeRoles: [HeimgeistRole.Observer, HeimgeistRole.Critic, HeimgeistRole.Director, HeimgeistRole.Archivist],
+      policies: [],
+      eventSources: [],
+      outputs: [],
+      persistenceEnabled: false
+    }, defaultLogger, mockChronik);
   });
 
   it('should publish a snapshot event when updating self model', async () => {
@@ -51,14 +58,14 @@ describe('Heimgeist Snapshot Events', () => {
     const mockAction = {
         id: actionId,
         timestamp: new Date(),
-        trigger: { id: 't1', title: 'test' } as any,
+        trigger: { id: 't1', title: 'test' } as unknown as import('../types').Insight,
         steps: [],
         requiresConfirmation: false,
         status: 'approved' as const
     };
 
     // Inject into private map
-    (heimgeist as any).plannedActions.set(actionId, mockAction);
+    (heimgeist as unknown as { plannedActions: Map<string, unknown> }).plannedActions.set(actionId, mockAction);
 
     // Reset mock before execution
     mockChronik.append.mockClear();

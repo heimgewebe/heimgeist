@@ -91,7 +91,7 @@ describe('CommandParser', () => {
     });
 
     it('should handle mixed quotes', () => {
-      const text = "@heimgewebe/test /cmd 'single quoted' \"double quoted\"";
+      const text = "@heimgewebe/sichter /cmd 'single quoted' \"double quoted\"";
       const commands = CommandParser.parseComment(text, context);
       expect(commands).toHaveLength(1);
       expect(commands[0].args).toEqual(['single quoted', 'double quoted']);
@@ -216,7 +216,7 @@ describe('CommandParser', () => {
 
     it('should reject unknown tool', () => {
         const valid = CommandParser.validateCommand({
-            tool: 'unknown' as any,
+            tool: 'unknown' as unknown as import('../types').HeimgewebeCommand['tool'],
             command: 'start',
             args: [],
             id: '1', timestamp: new Date(), context

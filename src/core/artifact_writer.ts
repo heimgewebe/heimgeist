@@ -57,7 +57,7 @@ export class ArtifactWriter {
       if (fs.existsSync(filepath)) {
           try {
               fs.unlinkSync(filepath);
-          } catch (unlinkError) {
+          } catch {
               // If unlink fails, rename might still work (or fail), proceed to try rename
           }
       }
@@ -68,7 +68,7 @@ export class ArtifactWriter {
       // Ensure cleanup of tmp file if it still exists (e.g. rename failed)
       try {
         if (fs.existsSync(tmpFilepath)) fs.unlinkSync(tmpFilepath);
-      } catch (ignored) { /* ignore cleanup error */ }
+      } catch { /* ignore cleanup error */ }
     }
   }
 

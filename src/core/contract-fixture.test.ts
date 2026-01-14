@@ -1,4 +1,4 @@
-import Ajv from 'ajv';
+import Ajv, { ValidateFunction } from 'ajv';
 import addFormats from 'ajv-formats';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -17,7 +17,7 @@ const bundleSchema = loadSchema('self_state.bundle.v1.schema.json');
 
 describe('Contract Compliance (Schema Validation)', () => {
     let ajv: Ajv;
-    let validateBundle: any;
+    let validateBundle: ValidateFunction;
 
     beforeAll(() => {
         ajv = new Ajv({
