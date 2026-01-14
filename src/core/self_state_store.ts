@@ -58,7 +58,7 @@ export class SelfStateStore {
         for (const file of toDelete) {
           try {
             fs.unlinkSync(path.join(SELF_MODEL_DIR, file));
-          } catch (ignored) { /* empty */ }
+          } catch { /* empty */ }
         }
       }
     } catch (e) {

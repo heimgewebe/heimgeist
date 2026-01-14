@@ -86,11 +86,11 @@ describe('ArtifactWriter', () => {
     writer.write(dirtyState, []);
 
     const call = (fs.writeFileSync as jest.Mock).mock.calls[0];
-    const writtenContent = JSON.parse(call[1]) as any;
+    const writtenContent = JSON.parse(call[1]) as { current: Record<string, unknown> };
 
     expect(writtenContent.current.internal_debug_value).toBeUndefined();
     expect(writtenContent.current._cache).toBeUndefined();
-    expect(writtenContent.current.confidence).toBe(0.9);
+    expect(writtenContent.current['confidence']).toBe(0.9);
   });
 
   it('should write valid ISO date for last_updated', () => {
@@ -115,7 +115,7 @@ describe('ArtifactWriter', () => {
     writer.write(currentState, []);
 
     const call = (fs.writeFileSync as jest.Mock).mock.calls[0];
-    const writtenContent = JSON.parse(call[1]) as any;
+    const writtenContent = JSON.parse(call[1]) as SelfStateBundle;
 
     expect(writtenContent.current.last_updated).toBe(validDate);
     // Simple regex check for ISO format
