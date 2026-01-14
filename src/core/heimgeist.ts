@@ -1302,7 +1302,7 @@ export class Heimgeist {
           if (cmd === 'set' && args) {
             const autonomyArg = args.find((a) => a.startsWith('autonomy='));
             if (autonomyArg) {
-              const val = autonomyArg.split('=')[1];
+              const val = autonomyArg.split('=')[1].trim().toLowerCase();
               if (['dormant', 'aware', 'reflective', 'critical'].includes(val)) {
                 this.selfModel.setAutonomy(val as 'dormant' | 'aware' | 'reflective' | 'critical');
               } else {
