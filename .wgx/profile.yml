@@ -28,9 +28,11 @@ wgx:
     lint: |
       set -euo pipefail
       if [ -f package.json ] && command -v npm >/dev/null 2>&1 && command -v node >/dev/null 2>&1; then
-        node -e 'process.exit(require("./package.json").scripts?.lint ? 0 : 1)' >/dev/null 2>&1 \
-          && npm run lint \
-          || echo "[wgx.lint] kein lint-Script definiert – übersprungen"
+        if node -e 'process.exit(require("./package.json").scripts?.lint ? 0 : 1)' >/dev/null 2>&1; then
+          npm run lint
+        else
+          echo "[wgx.lint] kein lint-Script definiert – übersprungen"
+        fi
       else
         echo "[wgx.lint] kein Node/npm setup – übersprungen"
       fi
@@ -38,9 +40,11 @@ wgx:
     test: |
       set -euo pipefail
       if [ -f package.json ] && command -v npm >/dev/null 2>&1 && command -v node >/dev/null 2>&1; then
-        node -e 'process.exit(require("./package.json").scripts?.test ? 0 : 1)' >/dev/null 2>&1 \
-          && npm run test \
-          || echo "[wgx.test] kein Test-Script definiert – übersprungen"
+        if node -e 'process.exit(require("./package.json").scripts?.test ? 0 : 1)' >/dev/null 2>&1; then
+          npm run test
+        else
+          echo "[wgx.test] kein Test-Script definiert – übersprungen"
+        fi
       else
         echo "[wgx.test] kein Node/npm setup – übersprungen"
       fi
