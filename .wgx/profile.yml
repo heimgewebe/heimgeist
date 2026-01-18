@@ -1,2 +1,32 @@
 class: meta
 domain: observer
+
+wgx:
+  apiVersion: v1
+  requiredWgx: "^2.0.0"
+  repoKind: node-service
+
+  tooling:
+    shell:
+      default: bash
+    node:
+      packageManager: npm
+
+  tasks:
+    up: "npm install"
+
+    lint: |
+      set -euo pipefail
+      if node -e 'if (!require("./package.json").scripts?.lint) process.exit(1)' >/dev/null 2>&1; then
+        npm run lint
+      else
+        echo "[wgx.lint] kein lint-Script definiert – übersprungen"
+      fi
+
+    test: |
+      set -euo pipefail
+      if node -e 'if (!require("./package.json").scripts?.test) process.exit(1)' >/dev/null 2>&1; then
+        npm test
+      else
+        echo "[wgx.test] kein Test-Script definiert – übersprungen"
+      fi
