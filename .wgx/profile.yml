@@ -1,2 +1,50 @@
 class: meta
 domain: observer
+
+wgx:
+  apiVersion: v1
+  requiredWgx: "^2.0.0"
+  repoKind: generic
+
+  tooling:
+    shell:
+      default: bash
+
+  tasks:
+    up: |
+      set -euo pipefail
+      if [ -f package.json ]; then
+        if command -v npm >/dev/null 2>&1; then
+          npm install
+        else
+          echo "[wgx.up] npm fehlt – übersprungen"
+        fi
+      else
+        echo "[wgx.up] kein package.json – übersprungen"
+      fi
+
+    smoke: "echo smoke ok"
+
+    lint: |
+      set -euo pipefail
+      if [ -f package.json ] && command -v npm >/dev/null 2>&1 && command -v node >/dev/null 2>&1; then
+        if node -e 'process.exit(require("./package.json").scripts?.lint ? 0 : 1)' >/dev/null 2>&1; then
+          npm run lint
+        else
+          echo "[wgx.lint] kein lint-Script definiert – übersprungen"
+        fi
+      else
+        echo "[wgx.lint] kein Node/npm setup – übersprungen"
+      fi
+
+    test: |
+      set -euo pipefail
+      if [ -f package.json ] && command -v npm >/dev/null 2>&1 && command -v node >/dev/null 2>&1; then
+        if node -e 'process.exit(require("./package.json").scripts?.test ? 0 : 1)' >/dev/null 2>&1; then
+          npm run test
+        else
+          echo "[wgx.test] kein Test-Script definiert – übersprungen"
+        fi
+      else
+        echo "[wgx.test] kein Node/npm setup – übersprungen"
+      fi
