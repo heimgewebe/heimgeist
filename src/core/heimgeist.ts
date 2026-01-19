@@ -338,18 +338,18 @@ export class Heimgeist {
 
       // Integrity Check (SHA256)
       if (expectedSha) {
-          // Note: crypto.subtle is Web API, in Node.js we might use 'crypto' module directly if available globally,
-          // but recent Node versions support global crypto.
-          // However, to be safe and robust across environments, we can use node 'crypto' if import is available.
-          // We imported 'crypto' at the top.
           const hash = crypto.createHash('sha256');
           hash.update(new Uint8Array(rawBuffer));
           const hashHex = hash.digest('hex');
 
-          // Strict hex comparison (64 chars). No prefix handling as per strict prompt requirement.
-          // "Das sha‐Feld muss der hexadezimale SHA256 des Artefakts sein (64 Zeichen)."
-          if (hashHex !== expectedSha) {
-              this.logger.warn(`Artifact SHA mismatch for ${filename}. Expected: ${expectedSha}, Got: ${hashHex}`);
+          const cleanExpectedSha = this.normalizeSha(expectedSha);
+          if (!cleanExpectedSha) {
+              this.logger.warn(`Invalid expected SHA format: ${expectedSha}`);
+              return false;
+          }
+
+          if (hashHex !== cleanExpectedSha) {
+              this.logger.warn(`Artifact SHA mismatch for ${filename}. Expected: ${cleanExpectedSha}, Got: ${hashHex}`);
               return false;
           }
       }
@@ -1806,6 +1806,21 @@ export class Heimgeist {
     hash.update(insight.title);
     hash.update(insight.description);
     return hash.digest('hex');
+  }
+
+  /**
+   * Normalize SHA string to strict hex format (64 chars)
+   */
+  private normalizeSha(sha: string): string | null {
+      // Allow sha256: prefix or no prefix
+      const lower = sha.toLowerCase().trim();
+      const hex = lower.startsWith('sha256:') ? lower.slice(7) : lower;
+
+      // Check strict hex 64
+      if (/^[a-f0-9]{64}$/.test(hex)) {
+          return hex;
+      }
+      return null;
   }
 
   /**

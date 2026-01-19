@@ -219,9 +219,9 @@ Heimgeist manages its own event cursor in `heimgeist_state/chronik.cursor`.
 ## Artifact Validation
 
 Heimgeist employs a "Validation Gate" for external artifacts.
-- Minimal schemas are defined in `src/core/minimal-gate-schemas.ts`.
-- **Strict Contracts** are loaded from `src/contracts/` (vendored from Metarepo) and enforced using `Ajv`.
-- Artifacts are only ingested if they originate from allowed hosts (e.g., GitHub, localhost) and pass schema validation.
+- **Strict Contracts** are loaded from `src/contracts/vendor/` and enforced using `Ajv`.
+- These contracts are **synced copies** from the Metarepo. Do not edit them manually. Run `scripts/sync-contracts.sh` to update.
+- Artifacts are only ingested if they originate from allowed hosts (e.g., GitHub, localhost) and pass strict schema validation.
 
 ## Architecture
 

@@ -14,14 +14,20 @@ export class RealChronikClient implements ChronikClient {
   private domain: string;
 
   constructor(ingestUrl?: string, eventsUrl?: string) {
-    // Ingest URL suffix: /v1/ingest
+    // Defaults assume standard service topology (base URL)
+    // CHRONIK_INGEST_URL is typically the base URL (e.g., http://localhost:3000)
+    // We strictly append /v1/ingest and /v1/events to the base.
     const baseIngest = ingestUrl || process.env.CHRONIK_INGEST_URL || 'http://localhost:3000';
     this.ingestUrl = this.normalizeUrl(baseIngest, '/v1/ingest');
 
-    // Events URL: /v1/events
-    // If CHRONIK_API_URL is set, use it. Otherwise derive from ingestUrl base.
-    // We assume ingestUrl might end with /v1/ingest, so we strip it to get base.
-    const baseEvents = eventsUrl || process.env.CHRONIK_API_URL || this.ingestUrl.replace(/\/v1\/ingest$/, '');
+    // Events URL derived from same base unless explicitly overridden
+    // If derived from baseIngest which might be a full URL ending in /v1/ingest, strip suffix
+    let defaultBaseEvents = baseIngest;
+    if (!eventsUrl && !process.env.CHRONIK_API_URL && baseIngest.endsWith('/v1/ingest')) {
+        defaultBaseEvents = baseIngest.replace(/\/v1\/ingest$/, '');
+    }
+
+    const baseEvents = eventsUrl || process.env.CHRONIK_API_URL || defaultBaseEvents;
     this.eventsUrl = this.normalizeUrl(baseEvents, '/v1/events');
 
     this.domain = process.env.CHRONIK_INGEST_DOMAIN || 'heimgeist.events';
@@ -54,39 +60,60 @@ export class RealChronikClient implements ChronikClient {
   }
 
   async nextEvent(types: string[]): Promise<ChronikEvent | null> {
-    try {
-        const cursor = this.getCursor();
-        const url = new URL(this.eventsUrl);
-        url.searchParams.set('domain', this.domain);
-        url.searchParams.set('limit', '1');
-        if (cursor) {
-            url.searchParams.set('cursor', cursor);
-        }
+    // Loop limited to 5 iterations to avoid getting stuck if many consecutive events don't match types.
+    // We must advance the cursor even if we don't return the event, otherwise we'd re-fetch the same ignored event forever.
+    let currentCursor = this.getCursor();
 
-        const response = await fetch(url.toString(), {
-            headers: {
-                ...(process.env.CHRONIK_TOKEN ? { 'X-Auth': process.env.CHRONIK_TOKEN } : {}),
-            },
-        });
-        if (!response.ok) return null;
-
-        // Metarepo contract says next_cursor is string | null.
-        // We handle it defensively if it comes as number, but store as string.
-        const body = await response.json() as { events: ChronikEvent[], next_cursor?: string | number | null };
-
-        if (body.next_cursor !== undefined && body.next_cursor !== null) {
-            this.setCursor(String(body.next_cursor));
-        }
-
-        if (body.events && body.events.length > 0) {
-            const event = body.events[0];
-            // Filter by types locally if API doesn't support type filtering or to be safe
-            if (types.includes(event.type as any)) {
-                return event;
+    for (let i = 0; i < 5; i++) {
+        try {
+            const url = new URL(this.eventsUrl);
+            url.searchParams.set('domain', this.domain);
+            url.searchParams.set('limit', '1');
+            if (currentCursor) {
+                url.searchParams.set('cursor', currentCursor);
             }
+
+            const response = await fetch(url.toString(), {
+                headers: {
+                    ...(process.env.CHRONIK_TOKEN ? { 'X-Auth': process.env.CHRONIK_TOKEN } : {}),
+                },
+            });
+
+            if (!response.ok) return null;
+
+            const body = await response.json() as { events: ChronikEvent[], next_cursor?: string | number | null };
+
+            // If no next_cursor or it hasn't moved, we are at the end
+            if (body.next_cursor === undefined || body.next_cursor === null || String(body.next_cursor) === currentCursor) {
+                return null;
+            }
+
+            const nextCursorStr = String(body.next_cursor);
+
+            // Advance in-memory cursor for next iteration
+            currentCursor = nextCursorStr;
+
+            if (body.events && body.events.length > 0) {
+                const event = body.events[0];
+                // Filter by types locally
+                if (types.includes(event.type as any)) {
+                    // Match found! Commit cursor and return event
+                    this.setCursor(nextCursorStr);
+                    return event;
+                } else {
+                    // Mismatch. We must skip this event.
+                    // We commit the cursor now so we don't re-process this ignored event if we crash/exit loop.
+                    this.setCursor(nextCursorStr);
+                    // Continue loop to try finding a matching event in next slot
+                }
+            } else {
+                // No events returned but cursor advanced (e.g. keepalive or sparse). Commit and continue.
+                this.setCursor(nextCursorStr);
+            }
+        } catch (error) {
+            // console.warn('Failed to poll Chronik:', error);
+            return null;
         }
-    } catch (error) {
-        // console.warn('Failed to poll Chronik:', error);
     }
     return null;
   }
