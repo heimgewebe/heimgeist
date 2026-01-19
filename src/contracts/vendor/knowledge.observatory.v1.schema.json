@@ -1,6 +1,7 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "title": "Knowledge Observatory Published Event",
+  "$id": "https://schemas.heimgewebe.org/contracts/knowledge/knowledge.observatory.v1.schema.json",
+  "title": "Knowledge Observatory Artifact",
   "type": "object",
   "properties": {
     "observatory_id": { "type": "string" },
@@ -18,12 +19,13 @@
     "considered_but_rejected": {
       "type": "array",
       "items": { "type": "string" }
-    }
+    },
+    "counts": { "type": "object" }
   },
   "required": [
     "observatory_id",
     "generated_at",
     "source"
   ],
-  "additionalProperties": true
+  "additionalProperties": false
 }

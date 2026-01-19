@@ -41,10 +41,14 @@ describe('Smoke Test: Artifact Ingestion', () => {
             considered_but_rejected: []
         };
         const testArtifactPath = path.join(tempDir, 'knowledge.observatory.json');
+        const jsonString = JSON.stringify(mockData);
+        const encoder = new TextEncoder();
+        const buffer = encoder.encode(jsonString);
 
         global.fetch = jest.fn().mockResolvedValue({
             ok: true,
-            json: async () => mockData,
+            json: async () => mockData, // Legacy call, might not be used now
+            arrayBuffer: async () => buffer,
             headers: { get: () => '500' }
         } as any);
 
@@ -64,7 +68,8 @@ describe('Smoke Test: Artifact Ingestion', () => {
             timestamp: new Date(),
             source: 'semantah',
             payload: {
-                url: 'https://localhost/knowledge.observatory.json'
+                url: 'https://localhost/knowledge.observatory.json',
+                // Optional: add SHA if we want to test positive case, or omit for no-check
             }
         };
 
@@ -80,13 +85,18 @@ describe('Smoke Test: Artifact Ingestion', () => {
             repo: "heimgeist",
             generated_at: new Date().toISOString(),
             status: "ok",
-            counts: { passed: 10, failed: 0, skipped: 0 }
+            counts: { passed: 10, failed: 0, skipped: 0 },
+            checks: []
         };
         const testArtifactPath = path.join(tempDir, 'integrity.summary.json');
+        const jsonString = JSON.stringify(mockData);
+        const encoder = new TextEncoder();
+        const buffer = encoder.encode(jsonString);
 
         global.fetch = jest.fn().mockResolvedValue({
             ok: true,
             json: async () => mockData,
+            arrayBuffer: async () => buffer,
             headers: { get: () => '500' }
         } as any);
 
@@ -123,10 +133,14 @@ describe('Smoke Test: Artifact Ingestion', () => {
             status: "broken"
         };
         const testArtifactPath = path.join(tempDir, 'integrity.summary.json');
+        const jsonString = JSON.stringify(mockData);
+        const encoder = new TextEncoder();
+        const buffer = encoder.encode(jsonString);
 
         global.fetch = jest.fn().mockResolvedValue({
             ok: true,
             json: async () => mockData,
+            arrayBuffer: async () => buffer,
             headers: { get: () => '500' }
         } as any);
 

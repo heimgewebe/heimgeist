@@ -4,8 +4,8 @@ import * as path from 'path';
 import * as crypto from 'crypto';
 import Ajv, { ValidateFunction } from 'ajv';
 import addFormats from 'ajv-formats';
-import * as KnowledgeObservatoryContract from '../contracts/knowledge.observatory.schema.json';
-import * as IntegritySummaryContract from '../contracts/integrity.summary.schema.json';
+import * as KnowledgeObservatoryContract from '../contracts/vendor/knowledge.observatory.v1.schema.json';
+import * as IntegritySummaryContract from '../contracts/vendor/integrity.summary.v1.schema.json';
 import {
   HeimgeistConfig,
   HeimgeistRole,
@@ -87,6 +87,8 @@ export class Heimgeist {
     this.artifactWriter = new ArtifactWriter(ARTIFACTS_DIR);
 
     // Initialize Ajv with strict validation
+    // Using draft2020-12 support if possible, but basic Ajv supports modern drafts well enough with flags.
+    // 'strict: true' ensures no unknown keywords.
     this.ajv = new Ajv({ allErrors: true, strict: true });
     addFormats(this.ajv);
 
@@ -279,7 +281,9 @@ export class Heimgeist {
     url: string,
     filename: string,
     validatorKey: string,
-    artifactDir: string = ARTIFACTS_DIR
+    artifactDir: string = ARTIFACTS_DIR,
+    expectedSha?: string,
+    expectedSchemaRef?: string
   ): Promise<boolean> {
     try {
       const parsedUrl = new URL(url);
@@ -303,7 +307,7 @@ export class Heimgeist {
       // Fetch
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), 10000); // 10s timeout
-      let data: unknown;
+      let rawBuffer: ArrayBuffer;
 
       try {
         const response = await fetch(url, { signal: controller.signal });
@@ -314,7 +318,7 @@ export class Heimgeist {
           return false;
         }
 
-        // Size limit check (heuristic via content-length or abort reading)
+        // Size limit check (heuristic via content-length)
         const sizeLimit = 1024 * 1024; // 1MB
         const contentLength = response.headers.get('content-length');
         if (contentLength && parseInt(contentLength, 10) > sizeLimit) {
@@ -322,12 +326,50 @@ export class Heimgeist {
              return false;
         }
 
-        data = await response.json();
+        rawBuffer = await response.arrayBuffer();
+        if (rawBuffer.byteLength > sizeLimit) {
+             this.logger.warn(`Artifact too large: ${rawBuffer.byteLength} bytes`);
+             return false;
+        }
+
       } finally {
         clearTimeout(timeout);
       }
 
-      // Validate
+      // Integrity Check (SHA256)
+      if (expectedSha) {
+          const hashBuffer = await crypto.subtle.digest('SHA-256', rawBuffer);
+          const hashArray = Array.from(new Uint8Array(hashBuffer));
+          const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+
+          // Handle 'sha256:' prefix if present
+          const cleanExpectedSha = expectedSha.startsWith('sha256:') ? expectedSha.slice(7) : expectedSha;
+
+          if (hashHex !== cleanExpectedSha) {
+              this.logger.warn(`Artifact SHA mismatch for ${filename}. Expected: ${cleanExpectedSha}, Got: ${hashHex}`);
+              return false;
+          }
+      }
+
+      // Parse JSON
+      let data: unknown;
+      try {
+          const decoder = new TextDecoder();
+          const text = decoder.decode(rawBuffer);
+          data = JSON.parse(text);
+      } catch (e) {
+          this.logger.warn(`Failed to parse artifact JSON: ${e}`);
+          return false;
+      }
+
+      // Validate Schema Ref (Optional Check)
+      if (expectedSchemaRef) {
+          // Log or check if the artifact internal schema matches expectation
+          // For now, we just log it as an audit trail
+          this.logger.log(`Ingesting artifact with declared schema ref: ${expectedSchemaRef}`);
+      }
+
+      // Validate Content against Contract
       const validate = this.validators.get(validatorKey);
       if (!validate) {
            this.logger.error(`No validator found for ${validatorKey}`);
@@ -375,13 +417,18 @@ export class Heimgeist {
     // Check for Knowledge Observatory Published
     if (event.type === EventType.KnowledgeObservatoryPublished) {
       const url = event.payload.url as string;
+      const sha = event.payload.sha as string | undefined;
+      const schemaRef = event.payload.schema_ref as string | undefined;
+
       if (url) {
         // Validation and persistence to artifacts/
         await this.fetchAndSaveArtifact(
           url,
           'knowledge.observatory.json',
           'knowledge.observatory',
-          this.config.artifactsDir || ARTIFACTS_DIR
+          this.config.artifactsDir || ARTIFACTS_DIR,
+          sha,
+          schemaRef
         );
 
         // Enforce HTTPS (redundant check but keeping original logic flow)
@@ -451,12 +498,17 @@ export class Heimgeist {
     // Check for Integrity Summary Published
     if (event.type === EventType.IntegritySummaryPublished) {
       const url = event.payload.url as string;
+      const sha = event.payload.sha as string | undefined;
+      const schemaRef = event.payload.schema_ref as string | undefined;
+
       if (url) {
         const saved = await this.fetchAndSaveArtifact(
           url,
           'integrity.summary.json',
           'integrity.summary',
-          this.config.artifactsDir || ARTIFACTS_DIR
+          this.config.artifactsDir || ARTIFACTS_DIR,
+          sha,
+          schemaRef
         );
         if (saved) {
           insights.push({

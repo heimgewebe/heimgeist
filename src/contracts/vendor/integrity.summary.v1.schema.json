@@ -1,6 +1,7 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "title": "Integrity Summary Published Event",
+  "$id": "https://schemas.heimgewebe.org/contracts/integrity/integrity.summary.v1.schema.json",
+  "title": "Integrity Summary Artifact",
   "type": "object",
   "properties": {
     "repo": { "type": "string" },
@@ -12,13 +13,17 @@
         "passed": { "type": "integer" },
         "failed": { "type": "integer" },
         "skipped": { "type": "integer" }
-      }
-    }
+      },
+      "additionalProperties": false,
+      "required": ["passed", "failed", "skipped"]
+    },
+    "checks": { "type": "array" }
   },
   "required": [
     "repo",
     "generated_at",
-    "status"
+    "status",
+    "counts"
   ],
-  "additionalProperties": true
+  "additionalProperties": false
 }
