@@ -31,6 +31,11 @@ export class RealChronikClient implements ChronikClient {
     }
   }
 
+  // Allow overriding domain for polling different streams (e.g. global vs personal)
+  public setDomain(domain: string): void {
+      this.domain = domain;
+  }
+
   private getCursor(): string | null {
       try {
           if (fs.existsSync(this.cursorFile)) {

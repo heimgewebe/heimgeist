@@ -4,7 +4,6 @@ import * as path from 'path';
 import * as crypto from 'crypto';
 import Ajv, { ValidateFunction } from 'ajv';
 import addFormats from 'ajv-formats';
-import { KnowledgeObservatorySchema, IntegritySummarySchema } from './minimal-gate-schemas';
 import * as KnowledgeObservatoryContract from '../contracts/knowledge.observatory.schema.json';
 import * as IntegritySummaryContract from '../contracts/integrity.summary.schema.json';
 import {
@@ -88,16 +87,13 @@ export class Heimgeist {
     this.artifactWriter = new ArtifactWriter(ARTIFACTS_DIR);
 
     // Initialize Ajv with strict validation
-    this.ajv = new Ajv({ allErrors: true, strict: false }); // Strict mode off for now to allow some flexibility in minimal schemas
+    this.ajv = new Ajv({ allErrors: true, strict: true });
     addFormats(this.ajv);
 
     // Pre-compile validators
     try {
         this.validators.set('knowledge.observatory', this.ajv.compile(KnowledgeObservatoryContract));
         this.validators.set('integrity.summary', this.ajv.compile(IntegritySummaryContract));
-        // Fallback validators
-        this.validators.set('knowledge.observatory.minimal', this.ajv.compile(KnowledgeObservatorySchema));
-        this.validators.set('integrity.summary.minimal', this.ajv.compile(IntegritySummarySchema));
     } catch (e) {
         this.logger.error(`Failed to compile schemas: ${e}`);
     }
@@ -332,14 +328,10 @@ export class Heimgeist {
       }
 
       // Validate
-      let validate = this.validators.get(validatorKey);
+      const validate = this.validators.get(validatorKey);
       if (!validate) {
-           // Fallback to minimal if strict not found, or log error
-           validate = this.validators.get(`${validatorKey}.minimal`);
-           if (!validate) {
-                this.logger.error(`No validator found for ${validatorKey}`);
-                return false;
-           }
+           this.logger.error(`No validator found for ${validatorKey}`);
+           return false;
       }
 
       if (!validate(data)) {
@@ -388,7 +380,8 @@ export class Heimgeist {
         await this.fetchAndSaveArtifact(
           url,
           'knowledge.observatory.json',
-          'knowledge.observatory'
+          'knowledge.observatory',
+          this.config.artifactsDir || ARTIFACTS_DIR
         );
 
         // Enforce HTTPS (redundant check but keeping original logic flow)
@@ -462,7 +455,8 @@ export class Heimgeist {
         const saved = await this.fetchAndSaveArtifact(
           url,
           'integrity.summary.json',
-          'integrity.summary'
+          'integrity.summary',
+          this.config.artifactsDir || ARTIFACTS_DIR
         );
         if (saved) {
           insights.push({

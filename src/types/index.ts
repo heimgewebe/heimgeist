@@ -170,6 +170,7 @@ export interface HeimgeistConfig {
   eventSources: EventSource[];
   outputs: OutputConfig[];
   persistenceEnabled?: boolean;
+  artifactsDir?: string;
 }
 
 /**
