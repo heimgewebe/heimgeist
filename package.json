@@ -39,8 +39,6 @@
     "@types/supertest": "^6.0.3",
     "@typescript-eslint/eslint-plugin": "^8.48.0",
     "@typescript-eslint/parser": "^8.48.0",
-    "ajv": "^8.17.1",
-    "ajv-formats": "^3.0.1",
     "eslint": "^9.39.1",
     "eslint-config-prettier": "^10.1.8",
     "eslint-plugin-prettier": "^5.5.4",
@@ -53,6 +51,8 @@
   },
   "dependencies": {
     "@types/uuid": "^9.0.8",
+    "ajv": "^8.17.1",
+    "ajv-formats": "^3.0.1",
     "commander": "^14.0.2",
     "express": "^5.1.0",
     "uuid": "^9.0.1",

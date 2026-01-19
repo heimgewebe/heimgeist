@@ -2,6 +2,8 @@ import { v4 as uuidv4 } from 'uuid';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as crypto from 'crypto';
+import Ajv from 'ajv';
+import { KnowledgeObservatorySchema, IntegritySummarySchema } from './schemas';
 import {
   HeimgeistConfig,
   HeimgeistRole,
@@ -255,6 +257,73 @@ export class Heimgeist {
   }
 
   /**
+   * Fetch, validate, and save an external artifact
+   */
+  private async fetchAndSaveArtifact(
+    url: string,
+    filename: string,
+    schema: object
+  ): Promise<boolean> {
+    try {
+      if (!url.startsWith('https://')) {
+        this.logger.warn(`Artifact URL must be HTTPS: ${url}`);
+        return false;
+      }
+
+      // Fetch
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 10000); // 10s timeout
+      let data: unknown;
+
+      try {
+        const response = await fetch(url, { signal: controller.signal });
+        if (!response.ok) {
+          this.logger.warn(
+            `Failed to fetch artifact from ${url}: ${response.status} ${response.statusText}`
+          );
+          return false;
+        }
+        data = await response.json();
+      } finally {
+        clearTimeout(timeout);
+      }
+
+      // Validate
+      const ajv = new Ajv();
+      const validate = ajv.compile(schema);
+      if (!validate(data)) {
+        this.logger.warn(
+          `Artifact validation failed for ${filename}: ${ajv.errorsText(validate.errors)}`
+        );
+        return false;
+      }
+
+      // Save Atomic
+      if (!fs.existsSync(ARTIFACTS_DIR)) {
+        fs.mkdirSync(ARTIFACTS_DIR, { recursive: true });
+      }
+      const filePath = path.join(ARTIFACTS_DIR, filename);
+      const tempPath = `${filePath}.tmp`;
+
+      fs.writeFileSync(tempPath, JSON.stringify(data, null, 2));
+      // On Windows, rename might fail if destination exists, but we want atomic overwrite.
+      // Ideally, unlink first if exists, but rename atomic is platform dependent.
+      // Node.js fs.rename documentation says it overwrites on POSIX.
+      // We'll stick to renameSync.
+      if (fs.existsSync(filePath)) {
+          try { fs.unlinkSync(filePath); } catch (e) { /* ignore */ }
+      }
+      fs.renameSync(tempPath, filePath);
+
+      this.logger.log(`Artifact saved: ${filename}`);
+      return true;
+    } catch (error) {
+      this.logger.error(`Error processing artifact ${filename}: ${error}`);
+      return false;
+    }
+  }
+
+  /**
    * Observer role: Analyze events and extract observations
    */
   private async observe(event: ChronikEvent): Promise<Insight[]> {
@@ -264,6 +333,13 @@ export class Heimgeist {
     if (event.type === EventType.KnowledgeObservatoryPublished) {
       const url = event.payload.url as string;
       if (url) {
+        // Validation and persistence to artifacts/
+        await this.fetchAndSaveArtifact(
+          url,
+          'knowledge.observatory.json',
+          KnowledgeObservatorySchema
+        );
+
         // Enforce HTTPS
         if (!url.startsWith('https://')) {
           this.logger.warn(`Observatory URL must be HTTPS: ${url}`);
@@ -324,6 +400,35 @@ export class Heimgeist {
           }
         } catch (error) {
           this.logger.error(`Error processing observatory published event: ${error}`);
+        }
+      }
+    }
+
+    // Check for Integrity Summary Published
+    if (event.type === EventType.IntegritySummaryPublished) {
+      const url = event.payload.url as string;
+      if (url) {
+        const saved = await this.fetchAndSaveArtifact(
+          url,
+          'integrity.summary.json',
+          IntegritySummarySchema
+        );
+        if (saved) {
+          insights.push({
+            id: uuidv4(),
+            timestamp: new Date(),
+            role: HeimgeistRole.Observer,
+            type: 'suggestion',
+            severity: RiskSeverity.Low,
+            title: 'Integrity Summary Update',
+            description: `Integrity summary updated from ${url}.`,
+            source: event,
+            context: {
+              url,
+              reason: 'integrity_published',
+              insight_kind: 'heimgeist.insight.v1',
+            },
+          });
         }
       }
     }
