@@ -34,7 +34,7 @@ describe('Smoke Test: Artifact Ingestion', () => {
             observatory_id: "obs-1",
             generated_at: new Date().toISOString(),
             source: "semantah",
-            counts: { total: 42 }, // Extra prop allowed
+            counts: { total: 42 },
             topics: [],
             signals: {},
             blind_spots: [],
@@ -44,6 +44,10 @@ describe('Smoke Test: Artifact Ingestion', () => {
         const jsonString = JSON.stringify(mockData);
         const encoder = new TextEncoder();
         const buffer = encoder.encode(jsonString);
+
+        // Calculate SHA
+        const crypto = require('crypto');
+        const sha = crypto.createHash('sha256').update(buffer).digest('hex');
 
         global.fetch = jest.fn().mockResolvedValue({
             ok: true,
@@ -69,7 +73,7 @@ describe('Smoke Test: Artifact Ingestion', () => {
             source: 'semantah',
             payload: {
                 url: 'https://localhost/knowledge.observatory.json',
-                // Optional: add SHA if we want to test positive case, or omit for no-check
+                sha: sha
             }
         };
 
@@ -78,6 +82,55 @@ describe('Smoke Test: Artifact Ingestion', () => {
         expect(fs.existsSync(testArtifactPath)).toBe(true);
         const savedContent = JSON.parse(fs.readFileSync(testArtifactPath, 'utf-8'));
         expect(savedContent.observatory_id).toBe(mockData.observatory_id);
+    });
+
+    it('should verify SHA and reject mismatch', async () => {
+        const mockData = {
+            observatory_id: "obs-1",
+            generated_at: new Date().toISOString(),
+            source: "semantah",
+            counts: {},
+            topics: [],
+            signals: {},
+            blind_spots: [],
+            considered_but_rejected: []
+        };
+        const testArtifactPath = path.join(tempDir, 'knowledge.observatory.json');
+        const jsonString = JSON.stringify(mockData);
+        const encoder = new TextEncoder();
+        const buffer = encoder.encode(jsonString);
+
+        global.fetch = jest.fn().mockResolvedValue({
+            ok: true,
+            json: async () => mockData,
+            arrayBuffer: async () => buffer,
+            headers: { get: () => '500' }
+        } as any);
+
+        heimgeist = createHeimgeist({
+            autonomyLevel: 2,
+            activeRoles: [HeimgeistRole.Observer],
+            policies: [],
+            eventSources: [],
+            outputs: [],
+            persistenceEnabled: false,
+            artifactsDir: tempDir
+        });
+
+        const event: ChronikEvent = {
+            id: uuidv4(),
+            type: EventType.KnowledgeObservatoryPublished,
+            timestamp: new Date(),
+            source: 'semantah',
+            payload: {
+                url: 'https://localhost/knowledge.observatory.json',
+                sha: 'badhash'
+            }
+        };
+
+        await heimgeist.processEvent(event);
+
+        expect(fs.existsSync(testArtifactPath)).toBe(false);
     });
 
     it('should fetch and save artifact when IntegritySummaryPublished event is received', async () => {

@@ -338,15 +338,18 @@ export class Heimgeist {
 
       // Integrity Check (SHA256)
       if (expectedSha) {
-          const hashBuffer = await crypto.subtle.digest('SHA-256', rawBuffer);
-          const hashArray = Array.from(new Uint8Array(hashBuffer));
-          const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+          // Note: crypto.subtle is Web API, in Node.js we might use 'crypto' module directly if available globally,
+          // but recent Node versions support global crypto.
+          // However, to be safe and robust across environments, we can use node 'crypto' if import is available.
+          // We imported 'crypto' at the top.
+          const hash = crypto.createHash('sha256');
+          hash.update(new Uint8Array(rawBuffer));
+          const hashHex = hash.digest('hex');
 
-          // Handle 'sha256:' prefix if present
-          const cleanExpectedSha = expectedSha.startsWith('sha256:') ? expectedSha.slice(7) : expectedSha;
-
-          if (hashHex !== cleanExpectedSha) {
-              this.logger.warn(`Artifact SHA mismatch for ${filename}. Expected: ${cleanExpectedSha}, Got: ${hashHex}`);
+          // Strict hex comparison (64 chars). No prefix handling as per strict prompt requirement.
+          // "Das sha‐Feld muss der hexadezimale SHA256 des Artefakts sein (64 Zeichen)."
+          if (hashHex !== expectedSha) {
+              this.logger.warn(`Artifact SHA mismatch for ${filename}. Expected: ${expectedSha}, Got: ${hashHex}`);
               return false;
           }
       }

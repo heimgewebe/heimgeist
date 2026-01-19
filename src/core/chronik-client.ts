@@ -70,7 +70,9 @@ export class RealChronikClient implements ChronikClient {
         });
         if (!response.ok) return null;
 
-        const body = await response.json() as { events: ChronikEvent[], next_cursor?: string | number };
+        // Metarepo contract says next_cursor is string | null.
+        // We handle it defensively if it comes as number, but store as string.
+        const body = await response.json() as { events: ChronikEvent[], next_cursor?: string | number | null };
 
         if (body.next_cursor !== undefined && body.next_cursor !== null) {
             this.setCursor(String(body.next_cursor));
