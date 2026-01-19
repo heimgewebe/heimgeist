@@ -1,4 +1,7 @@
+import * as fs from 'fs';
+import * as path from 'path';
 import { ChronikClient, ChronikEvent, HeimgeistInsightEvent, HeimgeistSelfStateSnapshotEvent } from '../types';
+import { STATE_DIR } from '../config/state-paths';
 
 /**
  * Real Chronik Client implementation.
@@ -6,19 +9,72 @@ import { ChronikClient, ChronikEvent, HeimgeistInsightEvent, HeimgeistSelfStateS
  */
 export class RealChronikClient implements ChronikClient {
   private ingestUrl: string;
-  private apiUrl?: string;
+  private eventsUrl: string;
+  private cursorFile: string;
+  private domain: string;
 
-  constructor(ingestUrl?: string, apiUrl?: string) {
-    this.ingestUrl = ingestUrl || process.env.CHRONIK_INGEST_URL || 'http://localhost:3000/ingest';
-    this.apiUrl = apiUrl || process.env.CHRONIK_API_URL;
+  constructor(ingestUrl?: string, eventsUrl?: string) {
+    // Ingest URL suffix: /v1/ingest
+    const baseIngest = ingestUrl || process.env.CHRONIK_INGEST_URL || 'http://localhost:3000';
+    this.ingestUrl = baseIngest.endsWith('/v1/ingest') ? baseIngest : `${baseIngest.replace(/\/ingest$/, '')}/v1/ingest`;
+
+    // Events URL: /v1/events
+    const baseEvents = eventsUrl || process.env.CHRONIK_API_URL || baseIngest.replace(/\/v1\/ingest$/, '');
+    this.eventsUrl = `${baseEvents}/v1/events`;
+
+    this.domain = process.env.CHRONIK_INGEST_DOMAIN || 'heimgeist.events';
+    this.cursorFile = path.join(STATE_DIR, 'chronik.cursor');
+
+    // Ensure state dir exists
+    if (!fs.existsSync(STATE_DIR)) {
+        fs.mkdirSync(STATE_DIR, { recursive: true });
+    }
+  }
+
+  private getCursor(): string | null {
+      try {
+          if (fs.existsSync(this.cursorFile)) {
+              return fs.readFileSync(this.cursorFile, 'utf-8').trim();
+          }
+      } catch (e) { /* ignore */ }
+      return null;
+  }
+
+  private setCursor(cursor: string): void {
+      try {
+          fs.writeFileSync(this.cursorFile, cursor);
+      } catch (e) { /* ignore */ }
   }
 
   async nextEvent(types: string[]): Promise<ChronikEvent | null> {
-    // If no API URL is configured, we can't poll.
-    if (!this.apiUrl) return null;
+    try {
+        const cursor = this.getCursor();
+        const url = new URL(this.eventsUrl);
+        url.searchParams.set('domain', this.domain);
+        url.searchParams.set('limit', '1');
+        if (cursor) {
+            url.searchParams.set('cursor', cursor);
+        }
 
-    // TODO: Implement actual polling logic when Chronik provides a consumer API.
-    // Currently, Heimgeist relies on Plexer pushing events to it via webhook/HTTP.
+        const response = await fetch(url.toString());
+        if (!response.ok) return null;
+
+        const body = await response.json() as { events: ChronikEvent[], next_cursor?: string };
+
+        if (body.next_cursor) {
+            this.setCursor(body.next_cursor);
+        }
+
+        if (body.events && body.events.length > 0) {
+            const event = body.events[0];
+            // Filter by types locally if API doesn't support type filtering or to be safe
+            if (types.includes(event.type as any)) {
+                return event;
+            }
+        }
+    } catch (error) {
+        // console.warn('Failed to poll Chronik:', error);
+    }
     return null;
   }
 

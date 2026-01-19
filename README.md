@@ -208,6 +208,21 @@ npm run test:watch
 npm run lint
 ```
 
+## Integration with Chronik
+
+Heimgeist connects to Chronik via the configured environment variables:
+- `CHRONIK_INGEST_URL`: URL to push events (default: `http://localhost:3000/v1/ingest`).
+- `CHRONIK_API_URL`: URL to poll for events (default: `http://localhost:3000/v1/events`).
+
+Heimgeist manages its own event cursor in `heimgeist_state/chronik.cursor`.
+
+## Artifact Validation
+
+Heimgeist employs a "Validation Gate" for external artifacts.
+- Minimal schemas are defined in `src/core/minimal-gate-schemas.ts`.
+- **Strict Contracts** are loaded from `src/contracts/` (vendored from Metarepo) and enforced using `Ajv`.
+- Artifacts are only ingested if they originate from allowed hosts (e.g., GitHub, localhost) and pass schema validation.
+
 ## Architecture
 
 ```

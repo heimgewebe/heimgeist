@@ -1,6 +1,7 @@
 /**
  * Minimal schemas for validation of external artifacts.
  * These are used as "Validation Gates" before ingesting artifacts into the system.
+ * NOTE: These are NOT strict contracts. For strict validation, use src/contracts/*.
  */
 
 export const KnowledgeObservatorySchema = {

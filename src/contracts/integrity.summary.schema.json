@@ -1,0 +1,24 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Integrity Summary Published Event",
+  "type": "object",
+  "properties": {
+    "repo": { "type": "string" },
+    "generated_at": { "type": "string", "format": "date-time" },
+    "status": { "type": "string" },
+    "counts": {
+      "type": "object",
+      "properties": {
+        "passed": { "type": "integer" },
+        "failed": { "type": "integer" },
+        "skipped": { "type": "integer" }
+      }
+    }
+  },
+  "required": [
+    "repo",
+    "generated_at",
+    "status"
+  ],
+  "additionalProperties": true
+}

@@ -2,8 +2,11 @@ import { v4 as uuidv4 } from 'uuid';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as crypto from 'crypto';
-import Ajv from 'ajv';
-import { KnowledgeObservatorySchema, IntegritySummarySchema } from './schemas';
+import Ajv, { ValidateFunction } from 'ajv';
+import addFormats from 'ajv-formats';
+import { KnowledgeObservatorySchema, IntegritySummarySchema } from './minimal-gate-schemas';
+import * as KnowledgeObservatoryContract from '../contracts/knowledge.observatory.schema.json';
+import * as IntegritySummaryContract from '../contracts/integrity.summary.schema.json';
 import {
   HeimgeistConfig,
   HeimgeistRole,
@@ -71,6 +74,8 @@ export class Heimgeist {
   private chronik?: ChronikClient;
   private selfModel: SelfModel;
   private artifactWriter: ArtifactWriter;
+  private ajv: Ajv;
+  private validators: Map<string, ValidateFunction> = new Map();
 
   constructor(config?: HeimgeistConfig, logger: Logger = defaultLogger, chronik?: ChronikClient) {
     // console.log('Heimgeist constructor config:', config);
@@ -81,6 +86,21 @@ export class Heimgeist {
     this.startTime = new Date();
     this.selfModel = new SelfModel();
     this.artifactWriter = new ArtifactWriter(ARTIFACTS_DIR);
+
+    // Initialize Ajv with strict validation
+    this.ajv = new Ajv({ allErrors: true, strict: false }); // Strict mode off for now to allow some flexibility in minimal schemas
+    addFormats(this.ajv);
+
+    // Pre-compile validators
+    try {
+        this.validators.set('knowledge.observatory', this.ajv.compile(KnowledgeObservatoryContract));
+        this.validators.set('integrity.summary', this.ajv.compile(IntegritySummaryContract));
+        // Fallback validators
+        this.validators.set('knowledge.observatory.minimal', this.ajv.compile(KnowledgeObservatorySchema));
+        this.validators.set('integrity.summary.minimal', this.ajv.compile(IntegritySummarySchema));
+    } catch (e) {
+        this.logger.error(`Failed to compile schemas: ${e}`);
+    }
 
     if (this.config.persistenceEnabled !== false) {
       this.loadState();
@@ -262,10 +282,24 @@ export class Heimgeist {
   private async fetchAndSaveArtifact(
     url: string,
     filename: string,
-    schema: object
+    validatorKey: string,
+    artifactDir: string = ARTIFACTS_DIR
   ): Promise<boolean> {
     try {
-      if (!url.startsWith('https://')) {
+      const parsedUrl = new URL(url);
+
+      // Security: Allowlist check
+      const allowedHosts = ['github.com', 'objects.githubusercontent.com', 'raw.githubusercontent.com', 'localhost', '127.0.0.1'];
+      if (!allowedHosts.includes(parsedUrl.hostname)) {
+          // Check for heuristic allowlist if not exact match (e.g. subdomains)
+          // For now strict allowlist + localhost for tests
+          if (process.env.NODE_ENV !== 'test' && !process.env.ALLOW_UNSAFE_ARTIFACTS) {
+               this.logger.warn(`Artifact URL host not allowed: ${parsedUrl.hostname}`);
+               return false;
+          }
+      }
+
+      if (parsedUrl.protocol !== 'https:' && parsedUrl.hostname !== 'localhost' && parsedUrl.hostname !== '127.0.0.1') {
         this.logger.warn(`Artifact URL must be HTTPS: ${url}`);
         return false;
       }
@@ -283,26 +317,43 @@ export class Heimgeist {
           );
           return false;
         }
+
+        // Size limit check (heuristic via content-length or abort reading)
+        const sizeLimit = 1024 * 1024; // 1MB
+        const contentLength = response.headers.get('content-length');
+        if (contentLength && parseInt(contentLength, 10) > sizeLimit) {
+             this.logger.warn(`Artifact too large: ${contentLength} bytes`);
+             return false;
+        }
+
         data = await response.json();
       } finally {
         clearTimeout(timeout);
       }
 
       // Validate
-      const ajv = new Ajv();
-      const validate = ajv.compile(schema);
+      let validate = this.validators.get(validatorKey);
+      if (!validate) {
+           // Fallback to minimal if strict not found, or log error
+           validate = this.validators.get(`${validatorKey}.minimal`);
+           if (!validate) {
+                this.logger.error(`No validator found for ${validatorKey}`);
+                return false;
+           }
+      }
+
       if (!validate(data)) {
         this.logger.warn(
-          `Artifact validation failed for ${filename}: ${ajv.errorsText(validate.errors)}`
+          `Artifact validation failed for ${filename}: ${this.ajv.errorsText(validate.errors)}`
         );
         return false;
       }
 
       // Save Atomic
-      if (!fs.existsSync(ARTIFACTS_DIR)) {
-        fs.mkdirSync(ARTIFACTS_DIR, { recursive: true });
+      if (!fs.existsSync(artifactDir)) {
+        fs.mkdirSync(artifactDir, { recursive: true });
       }
-      const filePath = path.join(ARTIFACTS_DIR, filename);
+      const filePath = path.join(artifactDir, filename);
       const tempPath = `${filePath}.tmp`;
 
       fs.writeFileSync(tempPath, JSON.stringify(data, null, 2));
@@ -337,10 +388,10 @@ export class Heimgeist {
         await this.fetchAndSaveArtifact(
           url,
           'knowledge.observatory.json',
-          KnowledgeObservatorySchema
+          'knowledge.observatory'
         );
 
-        // Enforce HTTPS
+        // Enforce HTTPS (redundant check but keeping original logic flow)
         if (!url.startsWith('https://')) {
           this.logger.warn(`Observatory URL must be HTTPS: ${url}`);
           return insights;
@@ -411,7 +462,7 @@ export class Heimgeist {
         const saved = await this.fetchAndSaveArtifact(
           url,
           'integrity.summary.json',
-          IntegritySummarySchema
+          'integrity.summary'
         );
         if (saved) {
           insights.push({
