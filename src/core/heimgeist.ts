@@ -96,6 +96,10 @@ export class Heimgeist {
     try {
         this.validators.set('knowledge.observatory', this.ajv.compile(KnowledgeObservatoryContract));
         this.validators.set('integrity.summary', this.ajv.compile(IntegritySummaryContract));
+
+        // Store contract IDs for strict schema ref validation
+        this.validators.set('knowledge.observatory.id', KnowledgeObservatoryContract.$id as any);
+        this.validators.set('integrity.summary.id', IntegritySummaryContract.$id as any);
     } catch (e) {
         this.logger.error(`Failed to compile schemas: ${e}`);
     }
@@ -367,8 +371,8 @@ export class Heimgeist {
 
       // Validate Schema Ref
       if (expectedSchemaRef) {
-          if (!this.validateSchemaRef(expectedSchemaRef)) {
-              this.logger.warn(`Invalid schema ref host: ${expectedSchemaRef}`);
+          if (!this.validateSchemaRef(expectedSchemaRef, validatorKey)) {
+              this.logger.warn(`Invalid schema ref or mismatch: ${expectedSchemaRef}`);
               return false;
           }
           this.logger.log(`Ingesting artifact with declared schema ref: ${expectedSchemaRef}`);
@@ -1826,12 +1830,21 @@ export class Heimgeist {
   }
 
   /**
-   * Validate schema reference URL host
+   * Validate schema reference URL host and strict match against validator contract
    */
-  private validateSchemaRef(schemaRef: string): boolean {
+  private validateSchemaRef(schemaRef: string, validatorKey: string): boolean {
       try {
           const url = new URL(schemaRef);
-          return url.hostname === 'schemas.heimgewebe.org';
+          if (url.hostname !== 'schemas.heimgewebe.org') return false;
+
+          // Strict check: if the event claims a schema ref, it MUST match the ID of the contract we are using to validate.
+          const contractId = this.validators.get(`${validatorKey}.id`) as unknown as string;
+          if (contractId && contractId !== schemaRef) {
+              this.logger.warn(`Schema Ref Mismatch: Event claims ${schemaRef}, but Validator uses ${contractId}`);
+              return false;
+          }
+
+          return true;
       } catch (e) {
           return false;
       }

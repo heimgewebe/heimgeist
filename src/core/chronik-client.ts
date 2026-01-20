@@ -17,17 +17,20 @@ export class RealChronikClient implements ChronikClient {
     // Defaults assume standard service topology (base URL)
     // CHRONIK_INGEST_URL is typically the base URL (e.g., http://localhost:3000)
     // We strictly append /v1/ingest and /v1/events to the base.
-    const baseIngest = ingestUrl || process.env.CHRONIK_INGEST_URL || 'http://localhost:3000';
-    this.ingestUrl = this.normalizeUrl(baseIngest, '/v1/ingest');
+    let baseIngest = ingestUrl || process.env.CHRONIK_INGEST_URL || 'http://localhost:3000';
 
-    // Events URL derived from same base unless explicitly overridden
-    // If derived from baseIngest which might be a full URL ending in /v1/ingest, strip suffix
-    let defaultBaseEvents = baseIngest;
-    if (!eventsUrl && !process.env.CHRONIK_API_URL && baseIngest.endsWith('/v1/ingest')) {
-        defaultBaseEvents = baseIngest.replace(/\/v1\/ingest$/, '');
+    // If user provided a full URL like http://host/v1/ingest, we accept it but need base for eventsUrl derivation
+    let baseUrl = baseIngest;
+    if (baseUrl.endsWith('/v1/ingest')) {
+        baseUrl = baseUrl.replace(/\/v1\/ingest$/, '');
+    } else if (baseUrl.endsWith('/ingest')) { // Legacy support
+        baseUrl = baseUrl.replace(/\/ingest$/, '');
     }
 
-    const baseEvents = eventsUrl || process.env.CHRONIK_API_URL || defaultBaseEvents;
+    this.ingestUrl = this.normalizeUrl(baseIngest, '/v1/ingest');
+
+    // Events URL derived from base unless explicitly overridden
+    const baseEvents = eventsUrl || process.env.CHRONIK_API_URL || baseUrl;
     this.eventsUrl = this.normalizeUrl(baseEvents, '/v1/events');
 
     this.domain = process.env.CHRONIK_INGEST_DOMAIN || 'heimgeist.events';
@@ -82,12 +85,25 @@ export class RealChronikClient implements ChronikClient {
 
             const body = await response.json() as { events: ChronikEvent[], next_cursor?: string | number | null };
 
-            // If no next_cursor or it hasn't moved, we are at the end
-            if (body.next_cursor === undefined || body.next_cursor === null || String(body.next_cursor) === currentCursor) {
+            // Defensive: if events > 0 but next_cursor is missing/null, we have a contract violation or bug.
+            // But we must assume progress. We can't easily advance without a cursor from server if it's opaque.
+            // However, we strictly rely on next_cursor for pagination.
+
+            if (body.next_cursor === undefined || body.next_cursor === null) {
+                // If we got events but no cursor, we might be stuck.
+                // Log warning and break loop to be safe.
+                if (body.events && body.events.length > 0) {
+                    console.warn('[ChronikClient] Received events but no next_cursor. Pagination might be stuck.');
+                }
                 return null;
             }
 
             const nextCursorStr = String(body.next_cursor);
+
+            // If cursor hasn't moved, we are at the end (or stuck).
+            if (nextCursorStr === currentCursor) {
+                return null;
+            }
 
             // Advance in-memory cursor for next iteration
             currentCursor = nextCursorStr;
