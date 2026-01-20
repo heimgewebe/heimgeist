@@ -19,6 +19,11 @@ describe('RealChronikClient', () => {
             const client = getClient();
             expect(client.normalizeUrl('http://localhost:3000/', '/v1/ingest')).toBe('http://localhost:3000/v1/ingest');
         });
+
+        it('should handle legacy suffix replacement', () => {
+            const client = getClient();
+            expect(client.normalizeUrl('http://localhost:3000/ingest', '/v1/ingest')).toBe('http://localhost:3000/v1/ingest');
+        });
     });
 
     describe('Constructor URL Logic', () => {
@@ -31,6 +36,12 @@ describe('RealChronikClient', () => {
 
         it('should handle ingest URL with suffix correctly', () => {
             const client = new RealChronikClient('http://localhost:8080/v1/ingest');
+            expect((client as any).eventsUrl).toBe('http://localhost:8080/v1/events');
+            expect((client as any).ingestUrl).toBe('http://localhost:8080/v1/ingest');
+        });
+
+        it('should handle legacy ingest URL correctly', () => {
+            const client = new RealChronikClient('http://localhost:8080/ingest');
             expect((client as any).eventsUrl).toBe('http://localhost:8080/v1/events');
             expect((client as any).ingestUrl).toBe('http://localhost:8080/v1/ingest');
         });

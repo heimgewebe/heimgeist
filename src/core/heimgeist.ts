@@ -75,6 +75,7 @@ export class Heimgeist {
   private artifactWriter: ArtifactWriter;
   private ajv: Ajv;
   private validators: Map<string, ValidateFunction> = new Map();
+  private contractIds: Map<string, string> = new Map();
 
   constructor(config?: HeimgeistConfig, logger: Logger = defaultLogger, chronik?: ChronikClient) {
     // console.log('Heimgeist constructor config:', config);
@@ -98,8 +99,8 @@ export class Heimgeist {
         this.validators.set('integrity.summary', this.ajv.compile(IntegritySummaryContract));
 
         // Store contract IDs for strict schema ref validation
-        this.validators.set('knowledge.observatory.id', KnowledgeObservatoryContract.$id as any);
-        this.validators.set('integrity.summary.id', IntegritySummaryContract.$id as any);
+        if (KnowledgeObservatoryContract.$id) this.contractIds.set('knowledge.observatory', KnowledgeObservatoryContract.$id);
+        if (IntegritySummaryContract.$id) this.contractIds.set('integrity.summary', IntegritySummaryContract.$id);
     } catch (e) {
         this.logger.error(`Failed to compile schemas: ${e}`);
     }
@@ -1838,7 +1839,7 @@ export class Heimgeist {
           if (url.hostname !== 'schemas.heimgewebe.org') return false;
 
           // Strict check: if the event claims a schema ref, it MUST match the ID of the contract we are using to validate.
-          const contractId = this.validators.get(`${validatorKey}.id`) as unknown as string;
+          const contractId = this.contractIds.get(validatorKey);
           if (contractId && contractId !== schemaRef) {
               this.logger.warn(`Schema Ref Mismatch: Event claims ${schemaRef}, but Validator uses ${contractId}`);
               return false;

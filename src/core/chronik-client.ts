@@ -16,22 +16,24 @@ export class RealChronikClient implements ChronikClient {
   constructor(ingestUrl?: string, eventsUrl?: string) {
     // Defaults assume standard service topology (base URL)
     // CHRONIK_INGEST_URL is typically the base URL (e.g., http://localhost:3000)
-    // We strictly append /v1/ingest and /v1/events to the base.
     let baseIngest = ingestUrl || process.env.CHRONIK_INGEST_URL || 'http://localhost:3000';
 
-    // If user provided a full URL like http://host/v1/ingest, we accept it but need base for eventsUrl derivation
-    let baseUrl = baseIngest;
-    if (baseUrl.endsWith('/v1/ingest')) {
-        baseUrl = baseUrl.replace(/\/v1\/ingest$/, '');
-    } else if (baseUrl.endsWith('/ingest')) { // Legacy support
-        baseUrl = baseUrl.replace(/\/ingest$/, '');
-    }
+    // If user provided a full URL, strip suffix to get base for derivation
+    // normalizeUrl handles appending correctly even if suffix is missing or legacy.
 
+    // For ingestUrl, we just run normalization on whatever input we have
     this.ingestUrl = this.normalizeUrl(baseIngest, '/v1/ingest');
 
-    // Events URL derived from base unless explicitly overridden
-    const baseEvents = eventsUrl || process.env.CHRONIK_API_URL || baseUrl;
-    this.eventsUrl = this.normalizeUrl(baseEvents, '/v1/events');
+    // For eventsUrl derivation, we need a clean base if CHRONIK_API_URL is missing.
+    // If baseIngest was a full URL, we strip suffixes.
+    let cleanBase = baseIngest;
+    if (cleanBase.endsWith('/v1/ingest')) cleanBase = cleanBase.replace(/\/v1\/ingest$/, '');
+    else if (cleanBase.endsWith('/ingest')) cleanBase = cleanBase.replace(/\/ingest$/, '');
+    // Also strip trailing slash
+    if (cleanBase.endsWith('/')) cleanBase = cleanBase.slice(0, -1);
+
+    const rawEventsUrl = eventsUrl || process.env.CHRONIK_API_URL || cleanBase;
+    this.eventsUrl = this.normalizeUrl(rawEventsUrl, '/v1/events');
 
     this.domain = process.env.CHRONIK_INGEST_DOMAIN || 'heimgeist.events';
     this.cursorFile = path.join(STATE_DIR, 'chronik.cursor');
@@ -137,24 +139,21 @@ export class RealChronikClient implements ChronikClient {
       // Remove trailing slash
       let url = baseUrl.endsWith('/') ? baseUrl.slice(0, -1) : baseUrl;
 
-      // If url already ends with suffix, return it
+      // Check if it ends with correct suffix
       if (url.endsWith(suffix)) {
           return url;
       }
 
-      // Handle legacy suffixes (e.g. /ingest -> /v1/ingest) if strictly needed,
-      // but here we just ensure we append the suffix if missing.
-      // We also handle cases where the user might have provided a partial path like /ingest (legacy)
-      // but we want to enforce /v1/ingest.
-      // For robustness: if it ends with /ingest or /events (without v1), we replace it?
-      // The requirement says: robust normalization.
+      // Handle legacy suffix replacement (e.g., /ingest -> /v1/ingest)
+      // Suffix usually starts with /v1/..., so we check for the last part
+      const shortSuffix = suffix.replace(/^\/v1/, ''); // e.g. /ingest
 
-      // Simple strategy: append suffix.
-      // But if user gave '.../v1/events' and we want '/v1/events', we are good.
-      // If user gave '.../ingest' and we want '/v1/ingest', we should probably strip last segment?
-      // Let's stick to the prompt's suggestion:
-      // normalizeIngestUrl(x): endsWith('/v1/ingest') ? x : join(x, '/v1/ingest')
+      if (url.endsWith(shortSuffix)) {
+          // Replace .../ingest with .../v1/ingest
+          return url.substring(0, url.lastIndexOf(shortSuffix)) + suffix;
+      }
 
+      // Fallback: append
       return `${url}${suffix}`;
   }
 
