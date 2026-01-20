@@ -184,6 +184,55 @@ describe('Smoke Test: Artifact Ingestion', () => {
         expect(fs.existsSync(testArtifactPath)).toBe(false);
     });
 
+    it('should reject artifact with invalid schema ref host', async () => {
+        const mockData = {
+            observatory_id: "obs-1",
+            generated_at: new Date().toISOString(),
+            source: "semantah",
+            counts: { total: 42 },
+            topics: [],
+            signals: {},
+            blind_spots: [],
+            considered_but_rejected: []
+        };
+        const testArtifactPath = path.join(tempDir, 'knowledge.observatory.json');
+        const jsonString = JSON.stringify(mockData);
+        const encoder = new TextEncoder();
+        const buffer = encoder.encode(jsonString);
+
+        global.fetch = jest.fn().mockResolvedValue({
+            ok: true,
+            json: async () => mockData,
+            arrayBuffer: async () => buffer,
+            headers: { get: () => '500' }
+        } as any);
+
+        heimgeist = createHeimgeist({
+            autonomyLevel: 2,
+            activeRoles: [HeimgeistRole.Observer],
+            policies: [],
+            eventSources: [],
+            outputs: [],
+            persistenceEnabled: false,
+            artifactsDir: tempDir
+        });
+
+        const event: ChronikEvent = {
+            id: uuidv4(),
+            type: EventType.KnowledgeObservatoryPublished,
+            timestamp: new Date(),
+            source: 'semantah',
+            payload: {
+                url: 'https://localhost/knowledge.observatory.json',
+                schema_ref: 'https://evil.com/fake-schema.json'
+            }
+        };
+
+        await heimgeist.processEvent(event);
+
+        expect(fs.existsSync(testArtifactPath)).toBe(false);
+    });
+
     it('should fetch and save artifact when IntegritySummaryPublished event is received', async () => {
         const mockData = {
             repo: "heimgeist",

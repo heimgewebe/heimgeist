@@ -365,10 +365,12 @@ export class Heimgeist {
           return false;
       }
 
-      // Validate Schema Ref (Optional Check)
+      // Validate Schema Ref
       if (expectedSchemaRef) {
-          // Log or check if the artifact internal schema matches expectation
-          // For now, we just log it as an audit trail
+          if (!this.validateSchemaRef(expectedSchemaRef)) {
+              this.logger.warn(`Invalid schema ref host: ${expectedSchemaRef}`);
+              return false;
+          }
           this.logger.log(`Ingesting artifact with declared schema ref: ${expectedSchemaRef}`);
       }
 
@@ -1821,6 +1823,18 @@ export class Heimgeist {
           return hex;
       }
       return null;
+  }
+
+  /**
+   * Validate schema reference URL host
+   */
+  private validateSchemaRef(schemaRef: string): boolean {
+      try {
+          const url = new URL(schemaRef);
+          return url.hostname === 'schemas.heimgewebe.org';
+      } catch (e) {
+          return false;
+      }
   }
 
   /**

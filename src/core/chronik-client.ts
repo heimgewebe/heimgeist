@@ -61,7 +61,6 @@ export class RealChronikClient implements ChronikClient {
 
   async nextEvent(types: string[]): Promise<ChronikEvent | null> {
     // Loop limited to 5 iterations to avoid getting stuck if many consecutive events don't match types.
-    // We must advance the cursor even if we don't return the event, otherwise we'd re-fetch the same ignored event forever.
     let currentCursor = this.getCursor();
 
     for (let i = 0; i < 5; i++) {
@@ -101,8 +100,8 @@ export class RealChronikClient implements ChronikClient {
                     this.setCursor(nextCursorStr);
                     return event;
                 } else {
-                    // Mismatch. We must skip this event.
-                    // We commit the cursor now so we don't re-process this ignored event if we crash/exit loop.
+                    // Mismatch. Update disk cursor so we don't re-scan this ignored event next time.
+                    // This counts as "consuming" (discarding) the event.
                     this.setCursor(nextCursorStr);
                     // Continue loop to try finding a matching event in next slot
                 }
