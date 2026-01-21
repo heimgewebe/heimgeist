@@ -35,7 +35,7 @@ describe('Smoke Test: Artifact Ingestion', () => {
             generated_at: new Date().toISOString(),
             source: "semantah",
             counts: { total: 42 },
-            topics: [],
+            topics: [{name: "topic1"}],
             signals: {},
             blind_spots: [],
             considered_but_rejected: []

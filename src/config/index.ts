@@ -111,7 +111,7 @@ function mergeConfig(
       override.persistenceEnabled !== undefined
         ? override.persistenceEnabled
         : defaults.persistenceEnabled,
-    artifactsDir: override.artifactsDir,
+    artifactsDir: override.artifactsDir !== undefined ? override.artifactsDir : defaults.artifactsDir,
   };
 }
 

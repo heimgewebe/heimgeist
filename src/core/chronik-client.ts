@@ -49,18 +49,19 @@ export class RealChronikClient implements ChronikClient {
       this.domain = domain;
   }
 
-  private getCursor(): string | null {
+  private getCursor(): number | null {
       try {
           if (fs.existsSync(this.cursorFile)) {
-              return fs.readFileSync(this.cursorFile, 'utf-8').trim();
+              const val = parseInt(fs.readFileSync(this.cursorFile, 'utf-8').trim(), 10);
+              return isNaN(val) ? null : val;
           }
       } catch (e) { /* ignore */ }
       return null;
   }
 
-  private setCursor(cursor: string): void {
+  private setCursor(cursor: number): void {
       try {
-          fs.writeFileSync(this.cursorFile, cursor);
+          fs.writeFileSync(this.cursorFile, cursor.toString());
       } catch (e) { /* ignore */ }
   }
 
@@ -73,8 +74,8 @@ export class RealChronikClient implements ChronikClient {
             const url = new URL(this.eventsUrl);
             url.searchParams.set('domain', this.domain);
             url.searchParams.set('limit', '1');
-            if (currentCursor) {
-                url.searchParams.set('cursor', currentCursor);
+            if (currentCursor !== null) {
+                url.searchParams.set('cursor', currentCursor.toString());
             }
 
             const response = await fetch(url.toString(), {
@@ -85,7 +86,7 @@ export class RealChronikClient implements ChronikClient {
 
             if (!response.ok) return null;
 
-            const body = await response.json() as { events: ChronikEvent[], next_cursor?: string | number | null, has_more?: boolean };
+            const body = await response.json() as { events: ChronikEvent[], next_cursor?: number | null, has_more?: boolean };
 
             // If events > 0 but next_cursor is missing, we check has_more.
             // If has_more is explicitly false, we reached end.
@@ -100,32 +101,40 @@ export class RealChronikClient implements ChronikClient {
                 return null;
             }
 
-            const nextCursorStr = String(body.next_cursor);
+            const nextCursor = typeof body.next_cursor === 'number' ? body.next_cursor : parseInt(String(body.next_cursor), 10);
 
-            // If cursor hasn't moved, we are at the end (or stuck).
-            if (nextCursorStr === currentCursor) {
+            if (isNaN(nextCursor)) {
+                console.warn('[ChronikClient] Received invalid non-numeric next_cursor.');
                 return null;
             }
 
+            // If cursor hasn't moved, we are at the end (or stuck).
+            if (currentCursor !== null && nextCursor <= currentCursor) {
+                // Defensive check: if next_cursor is same or smaller, and we got events, something is wrong with pagination or we wrapped?
+                // Chronik guarantees monotonic cursor (byte offset).
+                // But if we retry loop, we might see same cursor if we didn't advance.
+                if (nextCursor === currentCursor) return null;
+            }
+
             // Advance in-memory cursor for next iteration
-            currentCursor = nextCursorStr;
+            currentCursor = nextCursor;
 
             if (body.events && body.events.length > 0) {
                 const event = body.events[0];
                 // Filter by types locally
                 if (types.includes(event.type as any)) {
                     // Match found! Commit cursor and return event
-                    this.setCursor(nextCursorStr);
+                    this.setCursor(nextCursor);
                     return event;
                 } else {
                     // Mismatch. Update disk cursor so we don't re-scan this ignored event next time.
                     // This counts as "consuming" (discarding) the event.
-                    this.setCursor(nextCursorStr);
+                    this.setCursor(nextCursor);
                     // Continue loop to try finding a matching event in next slot
                 }
             } else {
                 // No events returned but cursor advanced (e.g. keepalive or sparse). Commit and continue.
-                this.setCursor(nextCursorStr);
+                this.setCursor(nextCursor);
             }
         } catch (error) {
             // console.warn('Failed to poll Chronik:', error);
