@@ -303,21 +303,27 @@ export class Heimgeist {
     try {
       const parsedUrl = new URL(url);
 
-      // Security: Allowlist check
-      const allowedHosts = ['github.com', 'objects.githubusercontent.com', 'raw.githubusercontent.com', 'localhost', '127.0.0.1'];
+      // Security: Host Allowlist Check
+      const productionHosts = ['github.com', 'objects.githubusercontent.com', 'raw.githubusercontent.com'];
+      const devHosts = [...productionHosts, 'localhost', '127.0.0.1'];
+
+      // Effective Allowlist Logic:
+      // Production (default) -> Strict list (GitHub only)
+      // Test/Unsafe -> Dev list (includes localhost)
+      const isDevOrTest = process.env.NODE_ENV === 'test' || !!process.env.ALLOW_UNSAFE_ARTIFACTS;
+      const allowedHosts = isDevOrTest ? devHosts : productionHosts;
+
       if (!allowedHosts.includes(parsedUrl.hostname)) {
-          // Check for heuristic allowlist if not exact match (e.g. subdomains)
-          // For now strict allowlist + localhost for tests
-          if (process.env.NODE_ENV !== 'test' && !process.env.ALLOW_UNSAFE_ARTIFACTS) {
-               this.logger.warn(`Artifact URL host not allowed: ${parsedUrl.hostname}`);
-               return false;
-          }
+           this.logger.warn(`Artifact URL host not allowed: ${parsedUrl.hostname} (Mode: ${isDevOrTest ? 'Dev/Test' : 'Prod'})`);
+           return false;
       }
 
-      // Strict Protocol Check
-      // Allow http only for localhost/127.0.0.1
+      // Security: Protocol Check
+      // HTTPS required everywhere except allowed local hosts in Dev/Test mode
       const isLocal = parsedUrl.hostname === 'localhost' || parsedUrl.hostname === '127.0.0.1';
-      if (parsedUrl.protocol !== 'https:' && !isLocal) {
+      const allowHttp = isDevOrTest && isLocal;
+
+      if (parsedUrl.protocol !== 'https:' && !allowHttp) {
         this.logger.warn(`Artifact URL must be HTTPS: ${url}`);
         return false;
       }
