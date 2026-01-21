@@ -77,6 +77,7 @@ export class Heimgeist {
   private ajv: Ajv;
   private validators: Map<string, ValidateFunction> = new Map();
   private contractIds: Map<string, string> = new Map();
+  private gateHealthy: boolean = true;
 
   constructor(config?: HeimgeistConfig, logger: Logger = defaultLogger, chronik?: ChronikClient) {
     // console.log('Heimgeist constructor config:', config);
@@ -104,6 +105,7 @@ export class Heimgeist {
         if (IntegritySummaryContract.$id) this.contractIds.set('integrity.summary', IntegritySummaryContract.$id);
     } catch (e) {
         this.logger.error(`Failed to compile schemas: ${e}`);
+        this.gateHealthy = false;
     }
 
     if (this.config.persistenceEnabled !== false) {
@@ -178,6 +180,7 @@ export class Heimgeist {
       actionsExecuted: this.actionsExecuted,
       lastActivity: this.lastActivity,
       self_state: this.selfModel.getState(),
+      gateHealthy: this.gateHealthy,
     };
   }
 
@@ -291,6 +294,12 @@ export class Heimgeist {
     expectedSha?: string,
     expectedSchemaRef?: string
   ): Promise<boolean> {
+    // Fail fast if gate is unhealthy
+    if (!this.gateHealthy) {
+        this.logger.warn('Artifact Ingest Skipped: Validation Gate is degraded (schema compilation failed).');
+        return false;
+    }
+
     try {
       const parsedUrl = new URL(url);
 
@@ -405,10 +414,10 @@ export class Heimgeist {
       const tempPath = `${filePath}.tmp`;
 
       fs.writeFileSync(tempPath, JSON.stringify(data, null, 2));
-      // On Windows, rename might fail if destination exists, but we want atomic overwrite.
-      // Ideally, unlink first if exists, but rename atomic is platform dependent.
-      // Node.js fs.rename documentation says it overwrites on POSIX.
-      // We'll stick to renameSync.
+
+      // Best Effort Atomic Save:
+      // We unlink target if exists to handle Windows behavior where rename fails on existing files.
+      // This leaves a small window where the file doesn't exist, but ensures we don't get EPERM/EEXIST errors.
       if (fs.existsSync(filePath)) {
           try { fs.unlinkSync(filePath); } catch (e) { /* ignore */ }
       }

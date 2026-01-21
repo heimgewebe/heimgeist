@@ -239,6 +239,7 @@ export interface StatusResponse {
   actionsExecuted: number;
   lastActivity?: Date;
   self_state?: SelfModelState;
+  gateHealthy?: boolean;
 }
 
 /**

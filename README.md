@@ -224,6 +224,17 @@ Heimgeist employs a "Validation Gate" for external artifacts.
 - `scripts/sync-contracts.sh` is provided as a placeholder/template for future automated syncing.
 - Artifacts are only ingested if they originate from allowed hosts (e.g., GitHub, localhost) and pass strict schema validation.
 
+### Security & Validation Rules
+
+- **Host Allowlist**:
+    - **Production**: Strict allowlist (`github.com`, `objects.githubusercontent.com`, `raw.githubusercontent.com`). HTTPS required.
+    - **Test/Dev**: `localhost` and `127.0.0.1` allow HTTP.
+    - **Override**: `ALLOW_UNSAFE_ARTIFACTS` environment variable disables host/protocol checks (use with caution).
+- **Schema Ref (`schema_ref`)**:
+    - Optional in the event payload.
+    - If present, it must strictly match the `$id` of the contract used for validation.
+    - Used to prevent "schema confusion" attacks where an event claims to be one type but targets another validator.
+
 ## Architecture
 
 ```
