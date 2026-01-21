@@ -40,6 +40,7 @@ import { CommandParser } from './command-parser';
 import { SelfModel } from './self_model';
 import { ArtifactWriter } from './artifact_writer';
 import { SystemSignals } from '../types';
+import { RealChronikClient } from './chronik-client';
 
 /**
  * Insight context codes for identifying specific types of issues
@@ -304,7 +305,10 @@ export class Heimgeist {
           }
       }
 
-      if (parsedUrl.protocol !== 'https:' && parsedUrl.hostname !== 'localhost' && parsedUrl.hostname !== '127.0.0.1') {
+      // Strict Protocol Check
+      // Allow http only for localhost/127.0.0.1
+      const isLocal = parsedUrl.hostname === 'localhost' || parsedUrl.hostname === '127.0.0.1';
+      if (parsedUrl.protocol !== 'https:' && !isLocal) {
         this.logger.warn(`Artifact URL must be HTTPS: ${url}`);
         return false;
       }
@@ -441,10 +445,9 @@ export class Heimgeist {
           schemaRef
         );
 
-        // Enforce HTTPS (redundant check but keeping original logic flow)
-        if (!url.startsWith('https://')) {
-          this.logger.warn(`Observatory URL must be HTTPS: ${url}`);
-          return insights;
+        // Check for Token Availability if running Real Client (Safety Hint)
+        if (this.chronik instanceof RealChronikClient && !process.env.CHRONIK_TOKEN) {
+             this.logger.warn('Warning: Running RealChronikClient without CHRONIK_TOKEN. Ingest/Poll might fail.');
         }
 
         try {

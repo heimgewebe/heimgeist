@@ -85,15 +85,15 @@ export class RealChronikClient implements ChronikClient {
 
             if (!response.ok) return null;
 
-            const body = await response.json() as { events: ChronikEvent[], next_cursor?: string | number | null };
+            const body = await response.json() as { events: ChronikEvent[], next_cursor?: string | number | null, has_more?: boolean };
 
-            // Defensive: if events > 0 but next_cursor is missing/null, we have a contract violation or bug.
-            // But we must assume progress. We can't easily advance without a cursor from server if it's opaque.
-            // However, we strictly rely on next_cursor for pagination.
-
+            // If events > 0 but next_cursor is missing, we check has_more.
+            // If has_more is explicitly false, we reached end.
             if (body.next_cursor === undefined || body.next_cursor === null) {
-                // If we got events but no cursor, we might be stuck.
-                // Log warning and break loop to be safe.
+                if (body.has_more === false) {
+                    return null; // Clean EOF
+                }
+                // If we got events but no cursor and has_more isn't false, we might be stuck.
                 if (body.events && body.events.length > 0) {
                     console.warn('[ChronikClient] Received events but no next_cursor. Pagination might be stuck.');
                 }
@@ -159,6 +159,16 @@ export class RealChronikClient implements ChronikClient {
 
   async append(event: ChronikEvent | HeimgeistInsightEvent | HeimgeistSelfStateSnapshotEvent): Promise<void> {
     try {
+      // Ingest Contract: POST /v1/ingest { domain, payload }
+      // We map our internal event structure to the expected ingestion payload.
+      // If event has 'kind', it's a new Heimgeist event. If 'type', it's generic ChronikEvent.
+
+      const payload = event; // For now, we send the full event as payload
+      const ingestBody = {
+          domain: this.domain,
+          payload: payload
+      };
+
       const response = await fetch(this.ingestUrl, {
         method: 'POST',
         headers: {
@@ -166,7 +176,7 @@ export class RealChronikClient implements ChronikClient {
           // Optional: Add auth token if available
           ...(process.env.CHRONIK_TOKEN ? { 'X-Auth': process.env.CHRONIK_TOKEN } : {}),
         },
-        body: JSON.stringify(event),
+        body: JSON.stringify(ingestBody),
       });
 
       if (!response.ok) {

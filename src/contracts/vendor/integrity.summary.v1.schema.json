@@ -6,7 +6,10 @@
   "properties": {
     "repo": { "type": "string" },
     "generated_at": { "type": "string", "format": "date-time" },
-    "status": { "type": "string" },
+    "status": {
+      "type": "string",
+      "enum": ["ok", "failed", "warning"]
+    },
     "counts": {
       "type": "object",
       "properties": {
@@ -17,7 +20,17 @@
       "additionalProperties": false,
       "required": ["passed", "failed", "skipped"]
     },
-    "checks": { "type": "array" }
+    "checks": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "name": { "type": "string" },
+          "status": { "type": "string" }
+        },
+        "required": ["name", "status"]
+      }
+    }
   },
   "required": [
     "repo",

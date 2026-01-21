@@ -52,7 +52,7 @@ describe('Smoke Test: Artifact Ingestion', () => {
         global.fetch = jest.fn().mockResolvedValue({
             ok: true,
             json: async () => mockData,
-            arrayBuffer: async () => buffer.buffer,
+            arrayBuffer: async () => buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength),
             headers: { get: () => '500' }
         } as any);
 
@@ -105,7 +105,7 @@ describe('Smoke Test: Artifact Ingestion', () => {
         global.fetch = jest.fn().mockResolvedValue({
             ok: true,
             json: async () => mockData,
-            arrayBuffer: async () => buffer.buffer,
+            arrayBuffer: async () => buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength),
             headers: { get: () => '500' }
         } as any);
 
@@ -154,7 +154,7 @@ describe('Smoke Test: Artifact Ingestion', () => {
         global.fetch = jest.fn().mockResolvedValue({
             ok: true,
             json: async () => mockData,
-            arrayBuffer: async () => buffer.buffer,
+            arrayBuffer: async () => buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength),
             headers: { get: () => '500' }
         } as any);
 
@@ -203,7 +203,7 @@ describe('Smoke Test: Artifact Ingestion', () => {
         global.fetch = jest.fn().mockResolvedValue({
             ok: true,
             json: async () => mockData,
-            arrayBuffer: async () => buffer.buffer,
+            arrayBuffer: async () => buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength),
             headers: { get: () => '500' }
         } as any);
 
@@ -249,7 +249,7 @@ describe('Smoke Test: Artifact Ingestion', () => {
         global.fetch = jest.fn().mockResolvedValue({
             ok: true,
             json: async () => mockData,
-            arrayBuffer: async () => buffer.buffer,
+            arrayBuffer: async () => buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength),
             headers: { get: () => '500' }
         } as any);
 

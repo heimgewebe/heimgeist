@@ -11,7 +11,10 @@
       "type": "array",
       "items": { "type": "string" }
     },
-    "signals": { "type": "object" },
+    "signals": {
+      "type": "object",
+      "additionalProperties": true
+    },
     "blind_spots": {
       "type": "array",
       "items": { "type": "string" }
@@ -20,7 +23,12 @@
       "type": "array",
       "items": { "type": "string" }
     },
-    "counts": { "type": "object" }
+    "counts": {
+      "type": "object",
+      "properties": {
+        "total": { "type": "integer" }
+      }
+    }
   },
   "required": [
     "observatory_id",
