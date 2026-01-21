@@ -128,7 +128,10 @@ export class RealChronikClient implements ChronikClient {
                     return event;
                 } else {
                     // Mismatch. Update disk cursor so we don't re-scan this ignored event next time.
-                    // This counts as "consuming" (discarding) the event.
+                    // This counts as "consuming" (discarding) the event to prevent head-of-line blocking.
+                    // ARCHITECTURAL NOTE: This implies Heimgeist "eats" events from this cursor stream.
+                    // If multiple independent consumers share a cursor, this is problematic.
+                    // Currently, Heimgeist maintains its own private cursor file, so this is safe.
                     this.setCursor(nextCursor);
                     // Continue loop to try finding a matching event in next slot
                 }
@@ -189,9 +192,12 @@ export class RealChronikClient implements ChronikClient {
       });
 
       if (!response.ok) {
-        throw new Error(`Chronik ingest failed: ${response.status} ${response.statusText}`);
+        throw new Error(`Chronik ingest failed: ${response.status} ${response.statusText} [URL: ${this.ingestUrl}]`);
       }
     } catch (error) {
+      // Log context for debugging ingest mismatches
+      // console.error(`[ChronikClient] Append failed to ${this.ingestUrl}`, error);
+
       // We log the error but rethrow it so the caller (Archivist) knows it failed
       // The Archivist handles "Best Effort" logging.
       throw error;

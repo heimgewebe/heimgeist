@@ -86,7 +86,7 @@ export class Heimgeist {
     this.chronik = chronik;
     this.startTime = new Date();
     this.selfModel = new SelfModel();
-    this.artifactWriter = new ArtifactWriter(ARTIFACTS_DIR);
+    this.artifactWriter = new ArtifactWriter(this.config.artifactsDir || ARTIFACTS_DIR);
 
     // Initialize Ajv with strict validation
     // Using draft2020-12 support if possible, but basic Ajv supports modern drafts well enough with flags.
