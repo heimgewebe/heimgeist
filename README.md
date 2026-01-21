@@ -213,6 +213,7 @@ npm run lint
 Heimgeist connects to Chronik via the configured environment variables:
 - `CHRONIK_INGEST_URL`: Base URL of the Chronik service (default: `http://localhost:3000`). Heimgeist appends `/v1/ingest` and `/v1/events` automatically.
 - `CHRONIK_API_URL`: Optional override for the events endpoint if it differs from the ingest base.
+- `CHRONIK_INGEST_DOMAIN`: Domain for event filtering/ingestion (default: `heimgeist.events`).
 
 Heimgeist manages its own event cursor in `heimgeist_state/chronik.cursor`.
 

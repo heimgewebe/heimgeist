@@ -71,7 +71,7 @@ describe('Smoke Test: Artifact Ingestion', () => {
             timestamp: new Date(),
             source: 'semantah',
             payload: {
-                url: 'https://localhost/knowledge.observatory.json',
+                url: 'http://localhost/knowledge.observatory.json',
                 sha: sha
             }
         };
@@ -123,7 +123,7 @@ describe('Smoke Test: Artifact Ingestion', () => {
             timestamp: new Date(),
             source: 'semantah',
             payload: {
-                url: 'https://localhost/knowledge.observatory.json',
+                url: 'http://localhost/knowledge.observatory.json',
                 sha: `sha256:${sha}`
             }
         };
@@ -171,7 +171,7 @@ describe('Smoke Test: Artifact Ingestion', () => {
             timestamp: new Date(),
             source: 'semantah',
             payload: {
-                url: 'https://localhost/knowledge.observatory.json',
+                url: 'http://localhost/knowledge.observatory.json',
                 sha: 'badhash'
             }
         };
@@ -219,7 +219,7 @@ describe('Smoke Test: Artifact Ingestion', () => {
             timestamp: new Date(),
             source: 'semantah',
             payload: {
-                url: 'https://localhost/knowledge.observatory.json',
+                url: 'http://localhost/knowledge.observatory.json',
                 schema_ref: 'https://evil.com/fake-schema.json'
             }
         };
@@ -264,7 +264,7 @@ describe('Smoke Test: Artifact Ingestion', () => {
             timestamp: new Date(),
             source: 'wgx',
             payload: {
-                url: 'https://localhost/integrity.summary.json'
+                url: 'http://localhost/integrity.summary.json'
             }
         };
 
@@ -357,7 +357,7 @@ describe('Smoke Test: Artifact Ingestion', () => {
             timestamp: new Date(),
             source: 'wgx',
             payload: {
-                url: 'https://localhost/integrity.summary.json'
+                url: 'http://localhost/integrity.summary.json'
             }
         };
 
