@@ -51,7 +51,6 @@ describe('Smoke Test: Artifact Ingestion', () => {
 
         global.fetch = jest.fn().mockResolvedValue({
             ok: true,
-            json: async () => mockData,
             arrayBuffer: async () => buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength),
             headers: { get: () => '500' }
         } as any);
@@ -104,7 +103,6 @@ describe('Smoke Test: Artifact Ingestion', () => {
 
         global.fetch = jest.fn().mockResolvedValue({
             ok: true,
-            json: async () => mockData,
             arrayBuffer: async () => buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength),
             headers: { get: () => '500' }
         } as any);
@@ -153,7 +151,6 @@ describe('Smoke Test: Artifact Ingestion', () => {
 
         global.fetch = jest.fn().mockResolvedValue({
             ok: true,
-            json: async () => mockData,
             arrayBuffer: async () => buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength),
             headers: { get: () => '500' }
         } as any);
@@ -202,7 +199,6 @@ describe('Smoke Test: Artifact Ingestion', () => {
 
         global.fetch = jest.fn().mockResolvedValue({
             ok: true,
-            json: async () => mockData,
             arrayBuffer: async () => buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength),
             headers: { get: () => '500' }
         } as any);
@@ -248,7 +244,6 @@ describe('Smoke Test: Artifact Ingestion', () => {
 
         global.fetch = jest.fn().mockResolvedValue({
             ok: true,
-            json: async () => mockData,
             arrayBuffer: async () => buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength),
             headers: { get: () => '500' }
         } as any);
@@ -278,6 +273,55 @@ describe('Smoke Test: Artifact Ingestion', () => {
         expect(fs.existsSync(testArtifactPath)).toBe(true);
         const savedContent = JSON.parse(fs.readFileSync(testArtifactPath, 'utf-8'));
         expect(savedContent.status).toBe("ok");
+    });
+
+    it('should reject schema ref mismatch', async () => {
+        const mockData = {
+            observatory_id: "obs-1",
+            generated_at: new Date().toISOString(),
+            source: "semantah",
+            counts: { total: 42 },
+            topics: [],
+            signals: {},
+            blind_spots: [],
+            considered_but_rejected: []
+        };
+        const testArtifactPath = path.join(tempDir, 'knowledge.observatory.json');
+        const jsonString = JSON.stringify(mockData);
+        const encoder = new TextEncoder();
+        const buffer = encoder.encode(jsonString);
+
+        global.fetch = jest.fn().mockResolvedValue({
+            ok: true,
+            arrayBuffer: async () => buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength),
+            headers: { get: () => '500' }
+        } as any);
+
+        heimgeist = createHeimgeist({
+            autonomyLevel: 2,
+            activeRoles: [HeimgeistRole.Observer],
+            policies: [],
+            eventSources: [],
+            outputs: [],
+            persistenceEnabled: false,
+            artifactsDir: tempDir
+        });
+
+        const event: ChronikEvent = {
+            id: uuidv4(),
+            type: EventType.KnowledgeObservatoryPublished,
+            timestamp: new Date(),
+            source: 'semantah',
+            payload: {
+                url: 'https://localhost/knowledge.observatory.json',
+                // Wrong schema ID
+                schema_ref: 'https://schemas.heimgewebe.org/contracts/integrity/integrity.summary.v1.schema.json'
+            }
+        };
+
+        await heimgeist.processEvent(event);
+
+        expect(fs.existsSync(testArtifactPath)).toBe(false);
     });
 
     it('should fail to save artifact with invalid schema', async () => {
