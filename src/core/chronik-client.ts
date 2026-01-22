@@ -36,6 +36,14 @@ export class RealChronikClient implements ChronikClient {
     this.eventsUrl = this.normalizeUrl(rawEventsUrl, '/v1/events');
 
     this.domain = process.env.CHRONIK_INGEST_DOMAIN || 'heimgeist.events';
+
+    // Domain Usage Warning:
+    // If domain looks generic and doesn't start with 'heimgeist.', we warn to prevent
+    // accidental consumption of shared/global streams by this specific agent.
+    if (!this.domain.startsWith('heimgeist.') && !process.env.CHRONIK_SILENCE_DOMAIN_WARN) {
+        console.warn(`[ChronikClient] Warning: Using generic domain '${this.domain}'. Ensure this is intended, as Heimgeist consumes (skips) non-matching events from this stream.`);
+    }
+
     this.cursorFile = path.join(STATE_DIR, 'chronik.cursor');
 
     // Ensure state dir exists
@@ -49,17 +57,24 @@ export class RealChronikClient implements ChronikClient {
       this.domain = domain;
   }
 
-  private getCursor(): number | null {
+  private getCursor(): string | number | null {
       try {
           if (fs.existsSync(this.cursorFile)) {
-              const val = parseInt(fs.readFileSync(this.cursorFile, 'utf-8').trim(), 10);
-              return isNaN(val) ? null : val;
+              const raw = fs.readFileSync(this.cursorFile, 'utf-8').trim();
+              if (!raw) return null;
+
+              // Try to parse as number to maintain type consistency if it looks like one
+              const num = Number(raw);
+              if (!isNaN(num) && Number.isInteger(num) && String(num) === raw) {
+                  return num;
+              }
+              return raw;
           }
       } catch (e) { /* ignore */ }
       return null;
   }
 
-  private setCursor(cursor: number): void {
+  private setCursor(cursor: string | number): void {
       try {
           fs.writeFileSync(this.cursorFile, cursor.toString());
       } catch (e) { /* ignore */ }
@@ -80,18 +95,22 @@ export class RealChronikClient implements ChronikClient {
                 url.searchParams.set('cursor', currentCursor.toString());
             }
 
+            const controller = new AbortController();
+            const timeout = setTimeout(() => controller.abort(), 10000); // 10s timeout
+
             const response = await fetch(url.toString(), {
+                signal: controller.signal,
                 headers: {
                     ...(process.env.CHRONIK_TOKEN ? { 'X-Auth': process.env.CHRONIK_TOKEN } : {}),
                 },
-            });
+            }).finally(() => clearTimeout(timeout));
 
             if (!response.ok) {
                 console.warn(`[ChronikClient] Failed to poll events: ${response.status} ${response.statusText}`);
                 return null;
             }
 
-            const body = await response.json() as { events: ChronikEvent[], next_cursor?: number | null, has_more?: boolean };
+            const body = await response.json() as { events: ChronikEvent[], next_cursor?: string | number | null, has_more?: boolean };
 
             // If events > 0 but next_cursor is missing, we check has_more.
             // If has_more is explicitly false, we reached end.
@@ -106,19 +125,18 @@ export class RealChronikClient implements ChronikClient {
                 return null;
             }
 
-            const nextCursor = typeof body.next_cursor === 'number' ? body.next_cursor : parseInt(String(body.next_cursor), 10);
+            const nextCursor = body.next_cursor;
 
-            if (isNaN(nextCursor)) {
-                console.warn('[ChronikClient] Received invalid non-numeric next_cursor.');
+            // Stalled Cursor Detection
+            if (currentCursor !== null && nextCursor === currentCursor) {
+                // If cursor hasn't moved but we have more items (has_more !== false), this is a problem.
+                // We shouldn't silently loop or return null without warning.
+                if (body.has_more !== false) {
+                    console.warn(`[ChronikClient] Cursor stalled at '${currentCursor}' despite has_more=${body.has_more}. Stopping poll to prevent infinite loop.`);
+                    return null;
+                }
+                // If has_more is false (or undefined but empty), we are just done.
                 return null;
-            }
-
-            // If cursor hasn't moved, we are at the end (or stuck).
-            if (currentCursor !== null && nextCursor <= currentCursor) {
-                // Defensive check: if next_cursor is same or smaller, and we got events, something is wrong with pagination or we wrapped?
-                // Chronik guarantees monotonic cursor (byte offset).
-                // But if we retry loop, we might see same cursor if we didn't advance.
-                if (nextCursor === currentCursor) return null;
             }
 
             // Advance in-memory cursor for next iteration
@@ -134,9 +152,6 @@ export class RealChronikClient implements ChronikClient {
                 } else {
                     // Mismatch. Update disk cursor so we don't re-scan this ignored event next time.
                     // This counts as "consuming" (discarding) the event to prevent head-of-line blocking.
-                    // ARCHITECTURAL NOTE: This implies Heimgeist "eats" events from this cursor stream.
-                    // If multiple independent consumers share a cursor, this is problematic.
-                    // Currently, Heimgeist maintains its own private cursor file, so this is safe.
 
                     // console.log(`[ChronikClient] Skipping event ${event.id} of type ${event.type} (filter mismatch)`);
                     this.setCursor(nextCursor);

@@ -238,7 +238,9 @@ Heimgeist employs a "Validation Gate" for external artifacts.
     - If present, it must strictly match the `$id` of the contract used for internal validation.
     - Used to prevent "schema confusion" attacks where an event claims to be one type but targets another validator.
 
-**Note:** Schema validation uses Ajv in strict mode with logging (`strict: "log"`). Validation issues will log warnings but may not block processing if they are minor (e.g. unknown keywords).
+**Note:** Schema validation uses Ajv in strict mode with logging (`strict: "log"`).
+- **Validation Failures:** If the artifact does not match the schema (e.g., missing required fields, type mismatch), ingestion is **rejected**.
+- **Strictness Warnings:** "Log" mode only applies to Ajv strictness checks (like unknown keywords or format issues that don't violate the schema structure itself). These are logged as warnings but do not block ingestion if the payload is otherwise valid.
 
 ## Architecture
 
