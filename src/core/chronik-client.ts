@@ -66,10 +66,12 @@ export class RealChronikClient implements ChronikClient {
   }
 
   async nextEvent(types: string[]): Promise<ChronikEvent | null> {
-    // Loop limited to 5 iterations to avoid getting stuck if many consecutive events don't match types.
+    // Loop limited to prevent infinite blocking, but high enough to skip sparse streams.
+    // CHRONIK_MAX_SKIP defaults to 50.
+    const maxSkips = parseInt(process.env.CHRONIK_MAX_SKIP || '50', 10);
     let currentCursor = this.getCursor();
 
-    for (let i = 0; i < 5; i++) {
+    for (let i = 0; i < maxSkips; i++) {
         try {
             const url = new URL(this.eventsUrl);
             url.searchParams.set('domain', this.domain);
