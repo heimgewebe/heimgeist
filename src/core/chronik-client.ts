@@ -86,7 +86,10 @@ export class RealChronikClient implements ChronikClient {
                 },
             });
 
-            if (!response.ok) return null;
+            if (!response.ok) {
+                console.warn(`[ChronikClient] Failed to poll events: ${response.status} ${response.statusText}`);
+                return null;
+            }
 
             const body = await response.json() as { events: ChronikEvent[], next_cursor?: number | null, has_more?: boolean };
 
@@ -144,7 +147,7 @@ export class RealChronikClient implements ChronikClient {
                 this.setCursor(nextCursor);
             }
         } catch (error) {
-            // console.warn('Failed to poll Chronik:', error);
+            console.warn(`[ChronikClient] Failed to poll Chronik: ${error}`);
             return null;
         }
     }

@@ -214,6 +214,8 @@ Heimgeist connects to Chronik via the configured environment variables:
 - `CHRONIK_INGEST_URL`: Base URL of the Chronik service (default: `http://localhost:3000`). Heimgeist appends `/v1/ingest` and `/v1/events` automatically.
 - `CHRONIK_API_URL`: Optional override for the events endpoint if it differs from the ingest base.
 - `CHRONIK_INGEST_DOMAIN`: Domain for event filtering/ingestion (default: `heimgeist.events`).
+- `CHRONIK_TOKEN`: Auth token for Chronik API (sent as `X-Auth` header). Required for RealChronikClient.
+- `CHRONIK_MAX_SKIP`: Maximum consecutive non-matching events to skip before pausing polling (default: 50).
 
 Heimgeist manages its own event cursor in `heimgeist_state/chronik.cursor`.
 **Note:** Heimgeist consumes events from this domain exclusively. Skipped events (due to type mismatch) are considered "consumed" to advance the cursor. Do not share this domain/cursor with other independent consumers unless they are compatible replicas.
@@ -235,6 +237,8 @@ Heimgeist employs a "Validation Gate" for external artifacts.
     - Optional in the event payload.
     - If present, it must strictly match the `$id` of the contract used for internal validation.
     - Used to prevent "schema confusion" attacks where an event claims to be one type but targets another validator.
+
+**Note:** Schema validation uses Ajv in strict mode with logging (`strict: "log"`). Validation issues will log warnings but may not block processing if they are minor (e.g. unknown keywords).
 
 ## Architecture
 

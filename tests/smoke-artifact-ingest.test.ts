@@ -62,6 +62,7 @@ describe('Smoke Test: Artifact Ingestion', () => {
         global.fetch = jest.fn().mockResolvedValue({
             ok: true,
             arrayBuffer: async () => buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength),
+            text: async () => jsonString,
             headers: { get: () => '500' }
         } as any);
 
@@ -114,6 +115,7 @@ describe('Smoke Test: Artifact Ingestion', () => {
         global.fetch = jest.fn().mockResolvedValue({
             ok: true,
             arrayBuffer: async () => buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength),
+            text: async () => jsonString,
             headers: { get: () => '500' }
         } as any);
 
@@ -162,6 +164,7 @@ describe('Smoke Test: Artifact Ingestion', () => {
         global.fetch = jest.fn().mockResolvedValue({
             ok: true,
             arrayBuffer: async () => buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength),
+            text: async () => jsonString,
             headers: { get: () => '500' }
         } as any);
 
@@ -210,6 +213,7 @@ describe('Smoke Test: Artifact Ingestion', () => {
         global.fetch = jest.fn().mockResolvedValue({
             ok: true,
             arrayBuffer: async () => buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength),
+            text: async () => jsonString,
             headers: { get: () => '500' }
         } as any);
 
@@ -255,6 +259,7 @@ describe('Smoke Test: Artifact Ingestion', () => {
         global.fetch = jest.fn().mockResolvedValue({
             ok: true,
             arrayBuffer: async () => buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength),
+            text: async () => jsonString,
             headers: { get: () => '500' }
         } as any);
 
@@ -304,6 +309,7 @@ describe('Smoke Test: Artifact Ingestion', () => {
         global.fetch = jest.fn().mockResolvedValue({
             ok: true,
             arrayBuffer: async () => buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength),
+            text: async () => jsonString,
             headers: { get: () => '500' }
         } as any);
 
@@ -348,6 +354,7 @@ describe('Smoke Test: Artifact Ingestion', () => {
             ok: true,
             json: async () => mockData,
             arrayBuffer: async () => buffer.buffer,
+            text: async () => jsonString,
             headers: { get: () => '500' }
         } as any);
 
