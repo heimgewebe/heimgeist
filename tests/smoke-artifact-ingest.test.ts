@@ -11,8 +11,12 @@ const originalFetch = global.fetch;
 describe('Smoke Test: Artifact Ingestion', () => {
     let heimgeist: Heimgeist;
     let tempDir: string;
+    const originalEnv = process.env;
 
     beforeEach(() => {
+        // Enforce test environment to allow HTTP localhost fetches
+        process.env = { ...originalEnv, NODE_ENV: 'test', ALLOW_UNSAFE_ARTIFACTS: '1' };
+
         tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'heimgeist-test-'));
 
         // Mock ARTIFACTS_DIR via process.env or just rely on fetchAndSaveArtifact injection if we exposed it (we didn't publically).
@@ -23,6 +27,7 @@ describe('Smoke Test: Artifact Ingestion', () => {
     });
 
     afterEach(() => {
+        process.env = originalEnv;
         if (tempDir && fs.existsSync(tempDir)) {
            fs.rmSync(tempDir, { recursive: true, force: true });
         }

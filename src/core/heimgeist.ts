@@ -1853,8 +1853,8 @@ export class Heimgeist {
    */
   private validateSchemaRef(schemaRef: string, validatorKey: string): boolean {
       try {
-          const url = new URL(schemaRef);
-          if (url.hostname !== 'schemas.heimgewebe.org') return false;
+          // Check for valid URL format
+          new URL(schemaRef);
 
           // Strict check: if the event claims a schema ref, it MUST match the ID of the contract we are using to validate.
           const contractId = this.contractIds.get(validatorKey);
