@@ -111,6 +111,11 @@ export class Heimgeist {
     if (this.config.persistenceEnabled !== false) {
       this.loadState();
     }
+
+    // Centralized Token Check
+    if (this.chronik instanceof RealChronikClient && !process.env.CHRONIK_TOKEN) {
+        this.logger.warn('Warning: Running RealChronikClient without CHRONIK_TOKEN. Ingest/Poll might fail.');
+    }
   }
 
   /**
@@ -460,10 +465,6 @@ export class Heimgeist {
           schemaRef
         );
 
-        // Check for Token Availability if running Real Client (Safety Hint)
-        if (this.chronik instanceof RealChronikClient && !process.env.CHRONIK_TOKEN) {
-             this.logger.warn('Warning: Running RealChronikClient without CHRONIK_TOKEN. Ingest/Poll might fail.');
-        }
 
         try {
           const controller = new AbortController();

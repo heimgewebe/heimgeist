@@ -11,11 +11,14 @@ const originalFetch = global.fetch;
 describe('Smoke Test: Artifact Ingestion', () => {
     let heimgeist: Heimgeist;
     let tempDir: string;
-    const originalEnv = process.env;
+    // Store original env vars to restore later
+    const originalNodeEnv = process.env.NODE_ENV;
+    const originalAllowUnsafe = process.env.ALLOW_UNSAFE_ARTIFACTS;
 
     beforeEach(() => {
         // Enforce test environment to allow HTTP localhost fetches
-        process.env = { ...originalEnv, NODE_ENV: 'test', ALLOW_UNSAFE_ARTIFACTS: '1' };
+        process.env.NODE_ENV = 'test';
+        process.env.ALLOW_UNSAFE_ARTIFACTS = '1';
 
         tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'heimgeist-test-'));
 
@@ -27,7 +30,9 @@ describe('Smoke Test: Artifact Ingestion', () => {
     });
 
     afterEach(() => {
-        process.env = originalEnv;
+        process.env.NODE_ENV = originalNodeEnv;
+        process.env.ALLOW_UNSAFE_ARTIFACTS = originalAllowUnsafe; // Restore (even if undefined)
+
         if (tempDir && fs.existsSync(tempDir)) {
            fs.rmSync(tempDir, { recursive: true, force: true });
         }

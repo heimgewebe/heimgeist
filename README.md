@@ -216,6 +216,7 @@ Heimgeist connects to Chronik via the configured environment variables:
 - `CHRONIK_INGEST_DOMAIN`: Domain for event filtering/ingestion (default: `heimgeist.events`).
 
 Heimgeist manages its own event cursor in `heimgeist_state/chronik.cursor`.
+**Note:** Heimgeist consumes events from this domain exclusively. Skipped events (due to type mismatch) are considered "consumed" to advance the cursor. Do not share this domain/cursor with other independent consumers unless they are compatible replicas.
 
 ## Artifact Validation
 
@@ -232,7 +233,7 @@ Heimgeist employs a "Validation Gate" for external artifacts.
     - **Test/Dev**: If `NODE_ENV=test` or `ALLOW_UNSAFE_ARTIFACTS=1` is set, `localhost` and `127.0.0.1` are allowed (via HTTP or HTTPS).
 - **Schema Ref (`schema_ref`)**:
     - Optional in the event payload.
-    - If present, it must strictly match the ID of the contract used for internal validation.
+    - If present, it must strictly match the `$id` of the contract used for internal validation.
     - Used to prevent "schema confusion" attacks where an event claims to be one type but targets another validator.
 
 ## Architecture
