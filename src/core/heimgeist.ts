@@ -95,21 +95,14 @@ export class Heimgeist {
     this.ajv = new Ajv({ allErrors: true, strict: 'log' });
     addFormats(this.ajv);
 
-    // Helper to normalize JSON module imports (handle ESM/CJS interop wrappers)
-    // Sometimes 'import * as' yields { default: schema }, sometimes just schema.
-    const asSchema = (m: any) => m?.default ?? m;
-
     // Pre-compile validators
     try {
-        const obsSchema = asSchema(KnowledgeObservatoryContract);
-        const integSchema = asSchema(IntegritySummaryContract);
-
-        this.validators.set('knowledge.observatory', this.ajv.compile(obsSchema));
-        this.validators.set('integrity.summary', this.ajv.compile(integSchema));
+        this.validators.set('knowledge.observatory', this.ajv.compile(KnowledgeObservatoryContract));
+        this.validators.set('integrity.summary', this.ajv.compile(IntegritySummaryContract));
 
         // Store contract IDs for strict schema ref validation
-        if (obsSchema.$id) this.contractIds.set('knowledge.observatory', obsSchema.$id);
-        if (integSchema.$id) this.contractIds.set('integrity.summary', integSchema.$id);
+        if (KnowledgeObservatoryContract.$id) this.contractIds.set('knowledge.observatory', KnowledgeObservatoryContract.$id);
+        if (IntegritySummaryContract.$id) this.contractIds.set('integrity.summary', IntegritySummaryContract.$id);
     } catch (e) {
         this.logger.error(`Failed to compile schemas: ${e}`);
         this.gateHealthy = false;
@@ -462,9 +455,8 @@ export class Heimgeist {
       const schemaRef = event.payload.schema_ref as string | undefined;
 
       if (url) {
-        // Validation Gate: Fetch, Validate, and Persist.
-        // Returns false if validation fails or host is not allowed.
-        const saved = await this.fetchAndSaveArtifact(
+        // Validation and persistence to artifacts/
+        await this.fetchAndSaveArtifact(
           url,
           'knowledge.observatory.json',
           'knowledge.observatory',
@@ -473,60 +465,59 @@ export class Heimgeist {
           schemaRef
         );
 
-        // Security Critical: If artifact validation failed, we MUST NOT process it further.
-        if (!saved) {
-            this.logger.warn(`Observatory update rejected: Artifact validation failed for ${url}`);
-            return insights;
-        }
 
         try {
-          // Safe Path: Read from VALIDATED local artifact (double-fetch eliminated)
-          const artifactPath = path.join(this.config.artifactsDir || ARTIFACTS_DIR, 'knowledge.observatory.json');
-          if (!fs.existsSync(artifactPath)) {
-              this.logger.error('Valid artifact missing from disk after save. This should not happen.');
-              return insights;
+          const controller = new AbortController();
+          const timeout = setTimeout(() => controller.abort(), 5000);
+
+          try {
+            const response = await fetch(url, { signal: controller.signal });
+            if (response.ok) {
+              const rawText = await response.text();
+              const hash = crypto.createHash('sha256').update(rawText).digest('hex');
+
+              // Idempotency check
+              const isDuplicate = Array.from(this.insights.values()).some(
+                (i) => i.context?.observatory_hash === hash
+              );
+
+              if (isDuplicate) {
+                this.logger.log(`Skipping duplicate observatory update (hash: ${hash})`);
+                return insights;
+              }
+
+              const observatoryData = JSON.parse(rawText) as Record<string, unknown>;
+              const generatedAtRaw = observatoryData.generated_at;
+              const generatedAt =
+                typeof generatedAtRaw === 'string' && generatedAtRaw.length > 0
+                  ? generatedAtRaw
+                  : 'unknown';
+              const summary = `Observatory data received from ${url}. Generated at ${generatedAt}.`;
+
+              insights.push({
+                id: uuidv4(),
+                timestamp: new Date(),
+                role: HeimgeistRole.Observer,
+                type: 'suggestion',
+                severity: RiskSeverity.Low,
+                title: 'Knowledge Observatory Update',
+                description: summary,
+                source: event,
+                context: {
+                  url,
+                  observatory_generated_at: generatedAt,
+                  observatory_hash: hash,
+                  internalOnly: true, // Do not propagate to Chronik
+                  reason: 'observatory_published',
+                  insight_kind: 'heimgeist.insight.v1',
+                },
+              });
+            } else {
+              this.logger.warn(`Failed to fetch observatory data from ${url}: ${response.statusText}`);
+            }
+          } finally {
+            clearTimeout(timeout);
           }
-
-          const rawText = fs.readFileSync(artifactPath, 'utf-8');
-          const hash = crypto.createHash('sha256').update(rawText).digest('hex');
-
-          // Idempotency check
-          const isDuplicate = Array.from(this.insights.values()).some(
-            (i) => i.context?.observatory_hash === hash
-          );
-
-          if (isDuplicate) {
-            this.logger.log(`Skipping duplicate observatory update (hash: ${hash})`);
-            return insights;
-          }
-
-          const observatoryData = JSON.parse(rawText) as Record<string, unknown>;
-          const generatedAtRaw = observatoryData.generated_at;
-          const generatedAt =
-            typeof generatedAtRaw === 'string' && generatedAtRaw.length > 0
-              ? generatedAtRaw
-              : 'unknown';
-          const summary = `Observatory data received from ${url}. Generated at ${generatedAt}.`;
-
-          insights.push({
-            id: uuidv4(),
-            timestamp: new Date(),
-            role: HeimgeistRole.Observer,
-            type: 'suggestion',
-            severity: RiskSeverity.Low,
-            title: 'Knowledge Observatory Update',
-            description: summary,
-            source: event,
-            context: {
-              url,
-              observatory_generated_at: generatedAt,
-              observatory_hash: hash,
-              internalOnly: true, // Do not propagate to Chronik
-              reason: 'observatory_published',
-              insight_kind: 'heimgeist.insight.v1',
-            },
-          });
-
         } catch (error) {
           this.logger.error(`Error processing observatory published event: ${error}`);
         }
@@ -1868,14 +1859,7 @@ export class Heimgeist {
 
           // Strict check: if the event claims a schema ref, it MUST match the ID of the contract we are using to validate.
           const contractId = this.contractIds.get(validatorKey);
-
-          // Fail closed: If we don't have a known ID for this validator, we cannot safely verify the claim.
-          if (!contractId) {
-             this.logger.warn(`Schema Ref Rejected: Validator ${validatorKey} has no $id to match against event claim ${schemaRef}`);
-             return false;
-          }
-
-          if (contractId !== schemaRef) {
+          if (contractId && contractId !== schemaRef) {
               this.logger.warn(`Schema Ref Mismatch: Event claims ${schemaRef}, but Validator uses ${contractId}`);
               return false;
           }

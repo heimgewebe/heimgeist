@@ -36,14 +36,6 @@ export class RealChronikClient implements ChronikClient {
     this.eventsUrl = this.normalizeUrl(rawEventsUrl, '/v1/events');
 
     this.domain = process.env.CHRONIK_INGEST_DOMAIN || 'heimgeist.events';
-
-    // Domain Usage Warning:
-    // If domain looks generic and doesn't start with 'heimgeist.', we warn to prevent
-    // accidental consumption of shared/global streams by this specific agent.
-    if (!this.domain.startsWith('heimgeist.') && !process.env.CHRONIK_SILENCE_DOMAIN_WARN) {
-        console.warn(`[ChronikClient] Warning: Using generic domain '${this.domain}'. Ensure this is intended, as Heimgeist consumes (skips) non-matching events from this stream.`);
-    }
-
     this.cursorFile = path.join(STATE_DIR, 'chronik.cursor');
 
     // Ensure state dir exists
@@ -88,15 +80,11 @@ export class RealChronikClient implements ChronikClient {
                 url.searchParams.set('cursor', currentCursor.toString());
             }
 
-            const controller = new AbortController();
-            const timeout = setTimeout(() => controller.abort(), 10000); // 10s timeout
-
             const response = await fetch(url.toString(), {
-                signal: controller.signal,
                 headers: {
                     ...(process.env.CHRONIK_TOKEN ? { 'X-Auth': process.env.CHRONIK_TOKEN } : {}),
                 },
-            }).finally(() => clearTimeout(timeout));
+            });
 
             if (!response.ok) {
                 console.warn(`[ChronikClient] Failed to poll events: ${response.status} ${response.statusText}`);
