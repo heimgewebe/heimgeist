@@ -91,8 +91,8 @@ export class Heimgeist {
 
     // Initialize Ajv with strict validation
     // Using draft2020-12 support if possible, but basic Ajv supports modern drafts well enough with flags.
-    // 'strict: true' ensures no unknown keywords.
-    this.ajv = new Ajv({ allErrors: true, strict: true });
+    // 'strict: "log"' ensures visibility of unknown keywords/issues without hard crashing the gate.
+    this.ajv = new Ajv({ allErrors: true, strict: 'log' });
     addFormats(this.ajv);
 
     // Pre-compile validators

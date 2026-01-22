@@ -132,6 +132,8 @@ export class RealChronikClient implements ChronikClient {
                     // ARCHITECTURAL NOTE: This implies Heimgeist "eats" events from this cursor stream.
                     // If multiple independent consumers share a cursor, this is problematic.
                     // Currently, Heimgeist maintains its own private cursor file, so this is safe.
+
+                    // console.log(`[ChronikClient] Skipping event ${event.id} of type ${event.type} (filter mismatch)`);
                     this.setCursor(nextCursor);
                     // Continue loop to try finding a matching event in next slot
                 }

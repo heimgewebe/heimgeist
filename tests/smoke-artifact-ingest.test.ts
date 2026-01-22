@@ -186,7 +186,7 @@ describe('Smoke Test: Artifact Ingestion', () => {
         expect(fs.existsSync(testArtifactPath)).toBe(false);
     });
 
-    it('should reject artifact with invalid schema ref host', async () => {
+    it('should reject artifact with schema ref mismatch', async () => {
         const mockData = {
             observatory_id: "obs-1",
             generated_at: new Date().toISOString(),
