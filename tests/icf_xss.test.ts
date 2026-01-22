@@ -1,4 +1,3 @@
-// @ts-ignore
 import { createCategoryListItem } from '../src/frontend/icf_search';
 
 // Minimal DOM Mock
@@ -89,7 +88,6 @@ describe('ICF Search XSS Vulnerability', () => {
 
         // Let's verify structure: we expect spans and text nodes, but NO 'IMG' tag in the structure.
         // We can inspect the children directly.
-        const structure = li.innerHTML;
         // If safe: <span class="search-text">A1 – &lt;img...</span> (or similar, depending on mock)
         // If vulnerable: <span class="search-text">A1 – <img src=x...></span>
 

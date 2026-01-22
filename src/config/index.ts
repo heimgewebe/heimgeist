@@ -77,7 +77,7 @@ export function loadConfig(basePath?: string): HeimgeistConfig {
         const parsed = yaml.parse(content);
         return mergeConfig(DEFAULT_CONFIG, parsed);
       } catch (error) {
-        console.warn(`Warning: Failed to parse config at ${configPath}:`, error);
+        console.warn(`Failed to parse config at ${configPath}:`, error);
       }
     }
   }

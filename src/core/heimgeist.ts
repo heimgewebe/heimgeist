@@ -429,10 +429,22 @@ export class Heimgeist {
       // Best Effort Atomic Save:
       // We unlink target if exists to handle Windows behavior where rename fails on existing files.
       // This leaves a small window where the file doesn't exist, but ensures we don't get EPERM/EEXIST errors.
-      if (fs.existsSync(filePath)) {
-          try { fs.unlinkSync(filePath); } catch (e) { /* ignore */ }
+        try {
+          fs.renameSync(tempPath, filePath);
+      } catch (e) {
+          // Windows: Rename may fail if target exists
+          try {
+              if (fs.existsSync(filePath)) {
+                  fs.unlinkSync(filePath);
+                  fs.renameSync(tempPath, filePath);
+              } else {
+                  throw e; // Rethrow if file didn't exist but rename failed
+              }
+          } catch (retryError) {
+              this.logger.error(`Artifact save failed (rename retry): ${retryError}`);
+              return false;
+          }
       }
-      fs.renameSync(tempPath, filePath);
 
       this.logger.log(`Artifact saved: ${filename}`);
       return true;
@@ -475,12 +487,15 @@ export class Heimgeist {
         try {
           // Safe Path: Read from VALIDATED local artifact (double-fetch eliminated)
           const artifactPath = path.join(this.config.artifactsDir || ARTIFACTS_DIR, 'knowledge.observatory.json');
-          if (!fs.existsSync(artifactPath)) {
-              this.logger.error('Valid artifact missing from disk after save. This should not happen.');
+
+          let rawText: string;
+          try {
+              rawText = fs.readFileSync(artifactPath, 'utf-8');
+          } catch (e) {
+              this.logger.error(`Failed to read validated artifact from disk: ${e}`);
               return insights;
           }
 
-          const rawText = fs.readFileSync(artifactPath, 'utf-8');
           const hash = crypto.createHash('sha256').update(rawText).digest('hex');
 
           // Idempotency check

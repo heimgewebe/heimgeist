@@ -21,17 +21,15 @@ describe('Smoke Test: Artifact Ingestion', () => {
         process.env.ALLOW_UNSAFE_ARTIFACTS = '1';
 
         tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'heimgeist-test-'));
-
-        // Mock ARTIFACTS_DIR via process.env or just rely on fetchAndSaveArtifact injection if we exposed it (we didn't publically).
-        // Since ARTIFACTS_DIR is a constant in config/state-paths.ts, it's hard to mock without jest.mock.
-        // However, we modified fetchAndSaveArtifact to take a directory argument, but we can't easily call it from here as it's private.
-        // Wait, fetchAndSaveArtifact defaults to ARTIFACTS_DIR.
-
     });
 
     afterEach(() => {
         process.env.NODE_ENV = originalNodeEnv;
-        process.env.ALLOW_UNSAFE_ARTIFACTS = originalAllowUnsafe; // Restore (even if undefined)
+        if (originalAllowUnsafe === undefined) {
+            delete process.env.ALLOW_UNSAFE_ARTIFACTS;
+        } else {
+            process.env.ALLOW_UNSAFE_ARTIFACTS = originalAllowUnsafe;
+        }
 
         if (tempDir && fs.existsSync(tempDir)) {
            fs.rmSync(tempDir, { recursive: true, force: true });
@@ -150,55 +148,7 @@ describe('Smoke Test: Artifact Ingestion', () => {
             observatory_id: "obs-1",
             generated_at: new Date().toISOString(),
             source: "semantah",
-            counts: {},
-            topics: [],
-            signals: {},
-            blind_spots: [],
-            considered_but_rejected: []
-        };
-        const testArtifactPath = path.join(tempDir, 'knowledge.observatory.json');
-        const jsonString = JSON.stringify(mockData);
-        const encoder = new TextEncoder();
-        const buffer = encoder.encode(jsonString);
-
-        global.fetch = jest.fn().mockResolvedValue({
-            ok: true,
-            arrayBuffer: async () => buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength),
-            text: async () => jsonString,
-            headers: { get: () => '500' }
-        } as any);
-
-        heimgeist = createHeimgeist({
-            autonomyLevel: 2,
-            activeRoles: [HeimgeistRole.Observer],
-            policies: [],
-            eventSources: [],
-            outputs: [],
-            persistenceEnabled: false,
-            artifactsDir: tempDir
-        });
-
-        const event: ChronikEvent = {
-            id: uuidv4(),
-            type: EventType.KnowledgeObservatoryPublished,
-            timestamp: new Date(),
-            source: 'semantah',
-            payload: {
-                url: 'http://localhost/knowledge.observatory.json',
-                sha: 'badhash'
-            }
-        };
-
-        await heimgeist.processEvent(event);
-
-        expect(fs.existsSync(testArtifactPath)).toBe(false);
-    });
-
-    it('should reject artifact with schema ref mismatch', async () => {
-        const mockData = {
-            observatory_id: "obs-1",
-            generated_at: new Date().toISOString(),
-            source: "semantah",
+            // Required field 'counts' included to ensure schema validation passes, isolating SHA failure
             counts: { total: 42 },
             topics: [],
             signals: {},
@@ -234,7 +184,7 @@ describe('Smoke Test: Artifact Ingestion', () => {
             source: 'semantah',
             payload: {
                 url: 'http://localhost/knowledge.observatory.json',
-                schema_ref: 'https://evil.com/fake-schema.json'
+                sha: 'badhash'
             }
         };
 

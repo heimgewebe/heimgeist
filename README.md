@@ -231,7 +231,7 @@ Heimgeist employs a "Validation Gate" for external artifacts.
 ### Security & Validation Rules
 
 - **Host Allowlist**:
-    - **Production** (default): Strict allowlist (`github.com`, `objects.githubusercontent.com`, `raw.githubusercontent.com`). HTTPS required. `localhost` is blocked.
+    - **Production** (default): Strict allowlist (`github.com`, `objects.githubusercontent.com`, `raw.githubusercontent.com`). HTTPS required. `localhost` (including `127.0.0.1`) is blocked.
     - **Test/Dev**: If `NODE_ENV=test` or `ALLOW_UNSAFE_ARTIFACTS=1` is set, `localhost` and `127.0.0.1` are allowed (via HTTP or HTTPS).
 - **Schema Ref (`schema_ref`)**:
     - Optional in the event payload.
