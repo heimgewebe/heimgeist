@@ -57,26 +57,18 @@ export class RealChronikClient implements ChronikClient {
       this.domain = domain;
   }
 
-  private getCursor(): string | number | null {
+  private getCursor(): string | null {
       try {
           if (fs.existsSync(this.cursorFile)) {
-              const raw = fs.readFileSync(this.cursorFile, 'utf-8').trim();
-              if (!raw) return null;
-
-              // Try to parse as number to maintain type consistency if it looks like one
-              const num = Number(raw);
-              if (!isNaN(num) && Number.isInteger(num) && String(num) === raw) {
-                  return num;
-              }
-              return raw;
+              return fs.readFileSync(this.cursorFile, 'utf-8').trim() || null;
           }
       } catch (e) { /* ignore */ }
       return null;
   }
 
-  private setCursor(cursor: string | number): void {
+  private setCursor(cursor: string): void {
       try {
-          fs.writeFileSync(this.cursorFile, cursor.toString());
+          fs.writeFileSync(this.cursorFile, cursor);
       } catch (e) { /* ignore */ }
   }
 
@@ -92,7 +84,7 @@ export class RealChronikClient implements ChronikClient {
             url.searchParams.set('domain', this.domain);
             url.searchParams.set('limit', '1');
             if (currentCursor !== null) {
-                url.searchParams.set('cursor', currentCursor.toString());
+                url.searchParams.set('cursor', currentCursor);
             }
 
             const controller = new AbortController();
@@ -110,7 +102,13 @@ export class RealChronikClient implements ChronikClient {
                 return null;
             }
 
-            const body = await response.json() as { events: ChronikEvent[], next_cursor?: string | number | null, has_more?: boolean };
+            // Explicitly cast response body to expected structure.
+            // next_cursor is treated as string to support opaque cursors (e.g. ULID, base64).
+            const body = await response.json() as {
+                events: ChronikEvent[],
+                next_cursor?: string | number | null,
+                has_more?: boolean
+            };
 
             // If events > 0 but next_cursor is missing, we check has_more.
             // If has_more is explicitly false, we reached end.
@@ -125,7 +123,8 @@ export class RealChronikClient implements ChronikClient {
                 return null;
             }
 
-            const nextCursor = body.next_cursor;
+            // Robustly handle next_cursor as string, even if API returns number
+            const nextCursor = String(body.next_cursor);
 
             // Stalled Cursor Detection
             if (currentCursor !== null && nextCursor === currentCursor) {

@@ -116,6 +116,13 @@ export class Heimgeist {
     if (this.chronik instanceof RealChronikClient && !process.env.CHRONIK_TOKEN) {
         this.logger.warn('Warning: Running RealChronikClient without CHRONIK_TOKEN. Ingest/Poll might fail.');
     }
+
+    // Runtime Environment Check: fetch API
+    if (typeof fetch === 'undefined') {
+        this.logger.error('Runtime Error: Global fetch API is not available. Node.js >= 18.17.0 is required.');
+        // Degrade gracefully or fail fast? Failing fast is safer for a contract-based agent.
+        // For now, we log error which might be visible in logs, but process continues (risk of runtime crash on first fetch).
+    }
   }
 
   /**
