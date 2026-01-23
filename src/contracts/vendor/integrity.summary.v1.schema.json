@@ -1,0 +1,42 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://schemas.heimgewebe.org/contracts/integrity/integrity.summary.v1.schema.json",
+  "title": "Integrity Summary Artifact",
+  "type": "object",
+  "properties": {
+    "repo": { "type": "string" },
+    "generated_at": { "type": "string", "format": "date-time" },
+    "status": {
+      "type": "string",
+      "enum": ["ok", "failed", "warning"]
+    },
+    "counts": {
+      "type": "object",
+      "properties": {
+        "passed": { "type": "integer" },
+        "failed": { "type": "integer" },
+        "skipped": { "type": "integer" }
+      },
+      "additionalProperties": false,
+      "required": ["passed", "failed", "skipped"]
+    },
+    "checks": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "name": { "type": "string" },
+          "status": { "type": "string" }
+        },
+        "required": ["name", "status"]
+      }
+    }
+  },
+  "required": [
+    "repo",
+    "generated_at",
+    "status",
+    "counts"
+  ],
+  "additionalProperties": false
+}

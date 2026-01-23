@@ -55,6 +55,7 @@ export enum EventType {
   SichterReport = 'sichter.report.v1',
   WGXGuardCompleted = 'wgx.guard.completed',
   KnowledgeObservatoryPublished = 'knowledge.observatory.published.v1',
+  IntegritySummaryPublished = 'integrity.summary.published.v1',
   HeimgeistInsight = 'heimgeist.insight.v1',
   HeimgeistActions = 'heimgeist.actions.v1',
   HeimgeistSelfStateSnapshot = 'heimgeist.self_state.snapshot',
@@ -169,6 +170,7 @@ export interface HeimgeistConfig {
   eventSources: EventSource[];
   outputs: OutputConfig[];
   persistenceEnabled?: boolean;
+  artifactsDir?: string;
 }
 
 /**
@@ -237,6 +239,7 @@ export interface StatusResponse {
   actionsExecuted: number;
   lastActivity?: Date;
   self_state?: SelfModelState;
+  gateHealthy?: boolean;
 }
 
 /**

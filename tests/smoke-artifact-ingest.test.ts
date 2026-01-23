@@ -1,0 +1,335 @@
+import fs from 'fs';
+import path from 'path';
+import os from 'os';
+import { createHeimgeist, Heimgeist } from '../src/core';
+import { EventType, ChronikEvent, HeimgeistRole } from '../src/types';
+import { v4 as uuidv4 } from 'uuid';
+
+// Mock fetch
+const originalFetch = global.fetch;
+
+describe('Smoke Test: Artifact Ingestion', () => {
+    let heimgeist: Heimgeist;
+    let tempDir: string;
+    // Store original env vars to restore later
+    const originalNodeEnv = process.env.NODE_ENV;
+    const originalAllowUnsafe = process.env.ALLOW_UNSAFE_ARTIFACTS;
+
+    beforeEach(() => {
+        // Enforce test environment to allow HTTP localhost fetches
+        process.env.NODE_ENV = 'test';
+        process.env.ALLOW_UNSAFE_ARTIFACTS = '1';
+
+        tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'heimgeist-test-'));
+    });
+
+    afterEach(() => {
+        process.env.NODE_ENV = originalNodeEnv;
+        if (originalAllowUnsafe === undefined) {
+            delete process.env.ALLOW_UNSAFE_ARTIFACTS;
+        } else {
+            process.env.ALLOW_UNSAFE_ARTIFACTS = originalAllowUnsafe;
+        }
+
+        if (tempDir && fs.existsSync(tempDir)) {
+           fs.rmSync(tempDir, { recursive: true, force: true });
+        }
+        global.fetch = originalFetch;
+    });
+
+    it('should fetch and save artifact with matching SHA (hex)', async () => {
+        const mockData = {
+            observatory_id: "obs-1",
+            generated_at: new Date().toISOString(),
+            source: "semantah",
+            counts: { total: 42 },
+            topics: [{name: "topic1"}],
+            signals: {},
+            blind_spots: [],
+            considered_but_rejected: []
+        };
+        const testArtifactPath = path.join(tempDir, 'knowledge.observatory.json');
+        const jsonString = JSON.stringify(mockData);
+        const encoder = new TextEncoder();
+        const buffer = encoder.encode(jsonString);
+
+        // Calculate SHA
+        const crypto = require('crypto');
+        const sha = crypto.createHash('sha256').update(buffer).digest('hex');
+
+        global.fetch = jest.fn().mockResolvedValue({
+            ok: true,
+            arrayBuffer: async () => buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength),
+            text: async () => jsonString,
+            headers: { get: () => '500' }
+        } as any);
+
+        heimgeist = createHeimgeist({
+            autonomyLevel: 2,
+            activeRoles: [HeimgeistRole.Observer],
+            policies: [],
+            eventSources: [],
+            outputs: [],
+            persistenceEnabled: false,
+            artifactsDir: tempDir
+        });
+
+        const event: ChronikEvent = {
+            id: uuidv4(),
+            type: EventType.KnowledgeObservatoryPublished,
+            timestamp: new Date(),
+            source: 'semantah',
+            payload: {
+                url: 'http://localhost/knowledge.observatory.json',
+                sha: sha
+            }
+        };
+
+        await heimgeist.processEvent(event);
+
+        expect(fs.existsSync(testArtifactPath)).toBe(true);
+    });
+
+    it('should fetch and save artifact with matching SHA (sha256: prefix)', async () => {
+        const mockData = {
+            observatory_id: "obs-2",
+            generated_at: new Date().toISOString(),
+            source: "semantah",
+            counts: { total: 42 },
+            topics: [],
+            signals: {},
+            blind_spots: [],
+            considered_but_rejected: []
+        };
+        const testArtifactPath = path.join(tempDir, 'knowledge.observatory.json');
+        const jsonString = JSON.stringify(mockData);
+        const encoder = new TextEncoder();
+        const buffer = encoder.encode(jsonString);
+
+        // Calculate SHA
+        const crypto = require('crypto');
+        const sha = crypto.createHash('sha256').update(buffer).digest('hex');
+
+        global.fetch = jest.fn().mockResolvedValue({
+            ok: true,
+            arrayBuffer: async () => buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength),
+            text: async () => jsonString,
+            headers: { get: () => '500' }
+        } as any);
+
+        heimgeist = createHeimgeist({
+            autonomyLevel: 2,
+            activeRoles: [HeimgeistRole.Observer],
+            policies: [],
+            eventSources: [],
+            outputs: [],
+            persistenceEnabled: false,
+            artifactsDir: tempDir
+        });
+
+        const event: ChronikEvent = {
+            id: uuidv4(),
+            type: EventType.KnowledgeObservatoryPublished,
+            timestamp: new Date(),
+            source: 'semantah',
+            payload: {
+                url: 'http://localhost/knowledge.observatory.json',
+                sha: `sha256:${sha}`
+            }
+        };
+
+        await heimgeist.processEvent(event);
+
+        expect(fs.existsSync(testArtifactPath)).toBe(true);
+    });
+
+    it('should verify SHA and reject mismatch', async () => {
+        const mockData = {
+            observatory_id: "obs-1",
+            generated_at: new Date().toISOString(),
+            source: "semantah",
+            // Required field 'counts' included to ensure schema validation passes, isolating SHA failure
+            counts: { total: 42 },
+            topics: [],
+            signals: {},
+            blind_spots: [],
+            considered_but_rejected: []
+        };
+        const testArtifactPath = path.join(tempDir, 'knowledge.observatory.json');
+        const jsonString = JSON.stringify(mockData);
+        const encoder = new TextEncoder();
+        const buffer = encoder.encode(jsonString);
+
+        global.fetch = jest.fn().mockResolvedValue({
+            ok: true,
+            arrayBuffer: async () => buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength),
+            text: async () => jsonString,
+            headers: { get: () => '500' }
+        } as any);
+
+        heimgeist = createHeimgeist({
+            autonomyLevel: 2,
+            activeRoles: [HeimgeistRole.Observer],
+            policies: [],
+            eventSources: [],
+            outputs: [],
+            persistenceEnabled: false,
+            artifactsDir: tempDir
+        });
+
+        const event: ChronikEvent = {
+            id: uuidv4(),
+            type: EventType.KnowledgeObservatoryPublished,
+            timestamp: new Date(),
+            source: 'semantah',
+            payload: {
+                url: 'http://localhost/knowledge.observatory.json',
+                sha: 'badhash'
+            }
+        };
+
+        await heimgeist.processEvent(event);
+
+        expect(fs.existsSync(testArtifactPath)).toBe(false);
+    });
+
+    it('should fetch and save artifact when IntegritySummaryPublished event is received', async () => {
+        const mockData = {
+            repo: "heimgeist",
+            generated_at: new Date().toISOString(),
+            status: "ok",
+            counts: { passed: 10, failed: 0, skipped: 0 },
+            checks: []
+        };
+        const testArtifactPath = path.join(tempDir, 'integrity.summary.json');
+        const jsonString = JSON.stringify(mockData);
+        const encoder = new TextEncoder();
+        const buffer = encoder.encode(jsonString);
+
+        global.fetch = jest.fn().mockResolvedValue({
+            ok: true,
+            arrayBuffer: async () => buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength),
+            text: async () => jsonString,
+            headers: { get: () => '500' }
+        } as any);
+
+        heimgeist = createHeimgeist({
+            autonomyLevel: 2,
+            activeRoles: [HeimgeistRole.Observer],
+            policies: [],
+            eventSources: [],
+            outputs: [],
+            persistenceEnabled: false,
+            artifactsDir: tempDir // Injected via new config
+        });
+
+        const event: ChronikEvent = {
+            id: uuidv4(),
+            type: EventType.IntegritySummaryPublished,
+            timestamp: new Date(),
+            source: 'wgx',
+            payload: {
+                url: 'http://localhost/integrity.summary.json'
+            }
+        };
+
+        await heimgeist.processEvent(event);
+
+        expect(fs.existsSync(testArtifactPath)).toBe(true);
+        const savedContent = JSON.parse(fs.readFileSync(testArtifactPath, 'utf-8'));
+        expect(savedContent.status).toBe("ok");
+    });
+
+    it('should reject schema ref mismatch', async () => {
+        const mockData = {
+            observatory_id: "obs-1",
+            generated_at: new Date().toISOString(),
+            source: "semantah",
+            counts: { total: 42 },
+            topics: [],
+            signals: {},
+            blind_spots: [],
+            considered_but_rejected: []
+        };
+        const testArtifactPath = path.join(tempDir, 'knowledge.observatory.json');
+        const jsonString = JSON.stringify(mockData);
+        const encoder = new TextEncoder();
+        const buffer = encoder.encode(jsonString);
+
+        global.fetch = jest.fn().mockResolvedValue({
+            ok: true,
+            arrayBuffer: async () => buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength),
+            text: async () => jsonString,
+            headers: { get: () => '500' }
+        } as any);
+
+        heimgeist = createHeimgeist({
+            autonomyLevel: 2,
+            activeRoles: [HeimgeistRole.Observer],
+            policies: [],
+            eventSources: [],
+            outputs: [],
+            persistenceEnabled: false,
+            artifactsDir: tempDir
+        });
+
+        const event: ChronikEvent = {
+            id: uuidv4(),
+            type: EventType.KnowledgeObservatoryPublished,
+            timestamp: new Date(),
+            source: 'semantah',
+            payload: {
+                url: 'https://localhost/knowledge.observatory.json',
+                // Wrong schema ID
+                schema_ref: 'https://schemas.heimgewebe.org/contracts/integrity/integrity.summary.v1.schema.json'
+            }
+        };
+
+        await heimgeist.processEvent(event);
+
+        expect(fs.existsSync(testArtifactPath)).toBe(false);
+    });
+
+    it('should fail to save artifact with invalid schema', async () => {
+        const mockData = {
+            // Missing required fields
+            status: "broken"
+        };
+        const testArtifactPath = path.join(tempDir, 'integrity.summary.json');
+        const jsonString = JSON.stringify(mockData);
+        const encoder = new TextEncoder();
+        const buffer = encoder.encode(jsonString);
+
+        global.fetch = jest.fn().mockResolvedValue({
+            ok: true,
+            json: async () => mockData,
+            arrayBuffer: async () => buffer.buffer,
+            text: async () => jsonString,
+            headers: { get: () => '500' }
+        } as any);
+
+        heimgeist = createHeimgeist({
+            autonomyLevel: 2,
+            activeRoles: [HeimgeistRole.Observer],
+            policies: [],
+            eventSources: [],
+            outputs: [],
+            persistenceEnabled: false,
+            artifactsDir: tempDir
+        });
+
+        const event: ChronikEvent = {
+            id: uuidv4(),
+            type: EventType.IntegritySummaryPublished,
+            timestamp: new Date(),
+            source: 'wgx',
+            payload: {
+                url: 'http://localhost/integrity.summary.json'
+            }
+        };
+
+        await heimgeist.processEvent(event);
+
+        expect(fs.existsSync(testArtifactPath)).toBe(false);
+    });
+});

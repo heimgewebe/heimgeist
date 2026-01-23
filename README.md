@@ -208,6 +208,40 @@ npm run test:watch
 npm run lint
 ```
 
+## Integration with Chronik
+
+Heimgeist connects to Chronik via the configured environment variables:
+- `CHRONIK_INGEST_URL`: Base URL of the Chronik service (default: `http://localhost:3000`). Heimgeist appends `/v1/ingest` and `/v1/events` automatically.
+- `CHRONIK_API_URL`: Optional override for the events endpoint if it differs from the ingest base.
+- `CHRONIK_INGEST_DOMAIN`: Domain for event filtering/ingestion (default: `heimgeist.events`).
+- `CHRONIK_TOKEN`: Auth token for Chronik API (sent as `X-Auth` header). Required for RealChronikClient.
+- `CHRONIK_MAX_SKIP`: Maximum consecutive non-matching events to skip before pausing polling (default: 50).
+
+Heimgeist manages its own event cursor in `STATE_DIR/chronik.cursor` (typically `heimgeist_state/chronik.cursor`).
+**Note:** Heimgeist consumes events from this domain exclusively. Skipped events (due to type mismatch) are considered "consumed" to advance the cursor. Do not share this domain/cursor with other independent consumers unless they are compatible replicas.
+
+## Artifact Validation
+
+Heimgeist employs a "Validation Gate" for external artifacts.
+- **Strict Contracts** are loaded from `src/contracts/vendor/` and enforced using `Ajv`.
+- These contracts are **manually vendored snapshots** from the Metarepo (Gate Light). They are checked in to ensure stability but may drift if not manually synced. Do not edit them manually.
+- `scripts/sync-contracts.sh` is provided as a placeholder/template for future automated syncing.
+- Artifacts are only ingested if they originate from allowed hosts (e.g., GitHub, localhost) and pass strict schema validation.
+
+### Security & Validation Rules
+
+- **Host Allowlist**:
+    - **Production** (default): Strict allowlist (`github.com`, `objects.githubusercontent.com`, `raw.githubusercontent.com`). HTTPS required. `localhost` (including `127.0.0.1`) is blocked.
+    - **Test/Dev**: If `NODE_ENV=test` or `ALLOW_UNSAFE_ARTIFACTS=1` is set, `localhost` and `127.0.0.1` are allowed (via HTTP or HTTPS).
+- **Schema Ref (`schema_ref`)**:
+    - Optional in the event payload.
+    - If present, it must strictly match the `$id` of the contract used for internal validation.
+    - Used to prevent "schema confusion" attacks where an event claims to be one type but targets another validator.
+
+**Note:** Schema validation uses Ajv in strict mode with logging (`strict: "log"`).
+- **Validation Failures:** If the artifact does not match the schema (e.g., missing required fields, type mismatch), ingestion is **rejected**.
+- **Strictness Warnings:** "Log" mode only applies to Ajv strictness checks (like unknown keywords or format issues that don't violate the schema structure itself). These are logged as warnings but do not block ingestion if the payload is otherwise valid.
+
 ## Architecture
 
 ```

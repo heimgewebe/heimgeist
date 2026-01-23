@@ -2,6 +2,10 @@ import { v4 as uuidv4 } from 'uuid';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as crypto from 'crypto';
+import Ajv, { ValidateFunction } from 'ajv';
+import addFormats from 'ajv-formats';
+import * as KnowledgeObservatoryContract from '../contracts/vendor/knowledge.observatory.v1.schema.json';
+import * as IntegritySummaryContract from '../contracts/vendor/integrity.summary.v1.schema.json';
 import {
   HeimgeistConfig,
   HeimgeistRole,
@@ -36,6 +40,7 @@ import { CommandParser } from './command-parser';
 import { SelfModel } from './self_model';
 import { ArtifactWriter } from './artifact_writer';
 import { SystemSignals } from '../types';
+import { RealChronikClient } from './chronik-client';
 
 /**
  * Insight context codes for identifying specific types of issues
@@ -69,6 +74,10 @@ export class Heimgeist {
   private chronik?: ChronikClient;
   private selfModel: SelfModel;
   private artifactWriter: ArtifactWriter;
+  private ajv: Ajv;
+  private validators: Map<string, ValidateFunction> = new Map();
+  private contractIds: Map<string, string> = new Map();
+  private gateHealthy: boolean = true;
 
   constructor(config?: HeimgeistConfig, logger: Logger = defaultLogger, chronik?: ChronikClient) {
     // console.log('Heimgeist constructor config:', config);
@@ -78,10 +87,41 @@ export class Heimgeist {
     this.chronik = chronik;
     this.startTime = new Date();
     this.selfModel = new SelfModel();
-    this.artifactWriter = new ArtifactWriter(ARTIFACTS_DIR);
+    this.artifactWriter = new ArtifactWriter(this.config.artifactsDir || ARTIFACTS_DIR);
+
+    // Initialize Ajv with strict validation
+    // Using draft2020-12 support if possible, but basic Ajv supports modern drafts well enough with flags.
+    // 'strict: "log"' ensures visibility of unknown keywords/issues without hard crashing the gate.
+    this.ajv = new Ajv({ allErrors: true, strict: 'log' });
+    addFormats(this.ajv);
+
+    // Pre-compile validators
+    try {
+        this.validators.set('knowledge.observatory', this.ajv.compile(KnowledgeObservatoryContract));
+        this.validators.set('integrity.summary', this.ajv.compile(IntegritySummaryContract));
+
+        // Store contract IDs for strict schema ref validation
+        if (KnowledgeObservatoryContract.$id) this.contractIds.set('knowledge.observatory', KnowledgeObservatoryContract.$id);
+        if (IntegritySummaryContract.$id) this.contractIds.set('integrity.summary', IntegritySummaryContract.$id);
+    } catch (e) {
+        this.logger.error(`Failed to compile schemas: ${e}`);
+        this.gateHealthy = false;
+    }
 
     if (this.config.persistenceEnabled !== false) {
       this.loadState();
+    }
+
+    // Centralized Token Check
+    if (this.chronik instanceof RealChronikClient && !process.env.CHRONIK_TOKEN) {
+        this.logger.warn('Warning: Running RealChronikClient without CHRONIK_TOKEN. Ingest/Poll might fail.');
+    }
+
+    // Runtime Environment Check: fetch API
+    if (typeof fetch === 'undefined') {
+        this.logger.error('Runtime Error: Global fetch API is not available. Node.js >= 18.17.0 is required.');
+        // Degrade gracefully or fail fast? Failing fast is safer for a contract-based agent.
+        // For now, we log error which might be visible in logs, but process continues (risk of runtime crash on first fetch).
     }
   }
 
@@ -152,6 +192,7 @@ export class Heimgeist {
       actionsExecuted: this.actionsExecuted,
       lastActivity: this.lastActivity,
       self_state: this.selfModel.getState(),
+      gateHealthy: this.gateHealthy,
     };
   }
 
@@ -255,6 +296,172 @@ export class Heimgeist {
   }
 
   /**
+   * Fetch, validate, and save an external artifact
+   */
+  private async fetchAndSaveArtifact(
+    url: string,
+    filename: string,
+    validatorKey: string,
+    artifactDir: string = ARTIFACTS_DIR,
+    expectedSha?: string,
+    expectedSchemaRef?: string
+  ): Promise<boolean> {
+    // Fail fast if gate is unhealthy
+    if (!this.gateHealthy) {
+        this.logger.warn('Artifact Ingest Skipped: Validation Gate is degraded (schema compilation failed).');
+        return false;
+    }
+
+    try {
+      const parsedUrl = new URL(url);
+
+      // Security: Host Allowlist Check
+      const productionHosts = ['github.com', 'objects.githubusercontent.com', 'raw.githubusercontent.com'];
+      const devHosts = [...productionHosts, 'localhost', '127.0.0.1'];
+
+      // Effective Allowlist Logic:
+      // Production (default) -> Strict list (GitHub only)
+      // Test/Unsafe -> Dev list (includes localhost)
+      const isDevOrTest = process.env.NODE_ENV === 'test' || !!process.env.ALLOW_UNSAFE_ARTIFACTS;
+      const allowedHosts = isDevOrTest ? devHosts : productionHosts;
+
+      if (!allowedHosts.includes(parsedUrl.hostname)) {
+           this.logger.warn(`Artifact URL host not allowed: ${parsedUrl.hostname} (Mode: ${isDevOrTest ? 'Dev/Test' : 'Prod'})`);
+           return false;
+      }
+
+      // Security: Protocol Check
+      // HTTPS required everywhere except allowed local hosts in Dev/Test mode
+      const isLocal = parsedUrl.hostname === 'localhost' || parsedUrl.hostname === '127.0.0.1';
+      const allowHttp = isDevOrTest && isLocal;
+
+      if (parsedUrl.protocol !== 'https:' && !allowHttp) {
+        this.logger.warn(`Artifact URL must be HTTPS: ${url}`);
+        return false;
+      }
+
+      // Fetch
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 10000); // 10s timeout
+      let rawBuffer: ArrayBuffer;
+
+      try {
+        const response = await fetch(url, { signal: controller.signal });
+        if (!response.ok) {
+          this.logger.warn(
+            `Failed to fetch artifact from ${url}: ${response.status} ${response.statusText}`
+          );
+          return false;
+        }
+
+        // Size limit check (heuristic via content-length)
+        const sizeLimit = 1024 * 1024; // 1MB
+        const contentLength = response.headers.get('content-length');
+        if (contentLength && parseInt(contentLength, 10) > sizeLimit) {
+             this.logger.warn(`Artifact too large: ${contentLength} bytes`);
+             return false;
+        }
+
+        rawBuffer = await response.arrayBuffer();
+        if (rawBuffer.byteLength > sizeLimit) {
+             this.logger.warn(`Artifact too large: ${rawBuffer.byteLength} bytes`);
+             return false;
+        }
+
+      } finally {
+        clearTimeout(timeout);
+      }
+
+      // Integrity Check (SHA256)
+      if (expectedSha) {
+          const hash = crypto.createHash('sha256');
+          hash.update(new Uint8Array(rawBuffer));
+          const hashHex = hash.digest('hex');
+
+          const cleanExpectedSha = this.normalizeSha(expectedSha);
+          if (!cleanExpectedSha) {
+              this.logger.warn(`Invalid expected SHA format: ${expectedSha}`);
+              return false;
+          }
+
+          if (hashHex !== cleanExpectedSha) {
+              this.logger.warn(`Artifact SHA mismatch for ${filename}. Expected: ${cleanExpectedSha}, Got: ${hashHex}`);
+              return false;
+          }
+      }
+
+      // Parse JSON
+      let data: unknown;
+      try {
+          const decoder = new TextDecoder();
+          const text = decoder.decode(rawBuffer);
+          data = JSON.parse(text);
+      } catch (e) {
+          this.logger.warn(`Failed to parse artifact JSON: ${e}`);
+          return false;
+      }
+
+      // Validate Schema Ref
+      if (expectedSchemaRef) {
+          if (!this.validateSchemaRef(expectedSchemaRef, validatorKey)) {
+              this.logger.warn(`Invalid schema ref or mismatch: ${expectedSchemaRef}`);
+              return false;
+          }
+          this.logger.log(`Ingesting artifact with declared schema ref: ${expectedSchemaRef}`);
+      }
+
+      // Validate Content against Contract
+      const validate = this.validators.get(validatorKey);
+      if (!validate) {
+           this.logger.error(`No validator found for ${validatorKey}`);
+           return false;
+      }
+
+      if (!validate(data)) {
+        this.logger.warn(
+          `Artifact validation failed for ${filename}: ${this.ajv.errorsText(validate.errors)}`
+        );
+        return false;
+      }
+
+      // Save Atomic
+      if (!fs.existsSync(artifactDir)) {
+        fs.mkdirSync(artifactDir, { recursive: true });
+      }
+      const filePath = path.join(artifactDir, filename);
+      const tempPath = `${filePath}.tmp`;
+
+      fs.writeFileSync(tempPath, JSON.stringify(data, null, 2));
+
+      // Best Effort Atomic Save:
+      // We unlink target if exists to handle Windows behavior where rename fails on existing files.
+      // This leaves a small window where the file doesn't exist, but ensures we don't get EPERM/EEXIST errors.
+        try {
+          fs.renameSync(tempPath, filePath);
+      } catch (e) {
+          // Windows: Rename may fail if target exists
+          try {
+              if (fs.existsSync(filePath)) {
+                  fs.unlinkSync(filePath);
+                  fs.renameSync(tempPath, filePath);
+              } else {
+                  throw e; // Rethrow if file didn't exist but rename failed
+              }
+          } catch (retryError) {
+              this.logger.error(`Artifact save failed (rename retry): ${retryError}`);
+              return false;
+          }
+      }
+
+      this.logger.log(`Artifact saved: ${filename}`);
+      return true;
+    } catch (error) {
+      this.logger.error(`Error processing artifact ${filename}: ${error}`);
+      return false;
+    }
+  }
+
+  /**
    * Observer role: Analyze events and extract observations
    */
   private async observe(event: ChronikEvent): Promise<Insight[]> {
@@ -263,67 +470,115 @@ export class Heimgeist {
     // Check for Knowledge Observatory Published
     if (event.type === EventType.KnowledgeObservatoryPublished) {
       const url = event.payload.url as string;
+      const sha = event.payload.sha as string | undefined;
+      const schemaRef = event.payload.schema_ref as string | undefined;
+
       if (url) {
-        // Enforce HTTPS
-        if (!url.startsWith('https://')) {
-          this.logger.warn(`Observatory URL must be HTTPS: ${url}`);
-          return insights;
+        // Validation Gate: Fetch, Validate, and Persist.
+        // Returns false if validation fails or host is not allowed.
+        const saved = await this.fetchAndSaveArtifact(
+          url,
+          'knowledge.observatory.json',
+          'knowledge.observatory',
+          this.config.artifactsDir || ARTIFACTS_DIR,
+          sha,
+          schemaRef
+        );
+
+        // Security Critical: If artifact validation failed, we MUST NOT process it further.
+        if (!saved) {
+            this.logger.warn(`Observatory update rejected: Artifact validation failed for ${url}`);
+            return insights;
         }
 
         try {
-          const controller = new AbortController();
-          const timeout = setTimeout(() => controller.abort(), 5000);
+          // Safe Path: Read from VALIDATED local artifact (double-fetch eliminated)
+          const artifactPath = path.join(this.config.artifactsDir || ARTIFACTS_DIR, 'knowledge.observatory.json');
 
+          let rawText: string;
           try {
-            const response = await fetch(url, { signal: controller.signal });
-            if (response.ok) {
-              const rawText = await response.text();
-              const hash = crypto.createHash('sha256').update(rawText).digest('hex');
-
-              // Idempotency check
-              const isDuplicate = Array.from(this.insights.values()).some(
-                (i) => i.context?.observatory_hash === hash
-              );
-
-              if (isDuplicate) {
-                this.logger.log(`Skipping duplicate observatory update (hash: ${hash})`);
-                return insights;
-              }
-
-              const observatoryData = JSON.parse(rawText) as Record<string, unknown>;
-              const generatedAtRaw = observatoryData.generated_at;
-              const generatedAt =
-                typeof generatedAtRaw === 'string' && generatedAtRaw.length > 0
-                  ? generatedAtRaw
-                  : 'unknown';
-              const summary = `Observatory data received from ${url}. Generated at ${generatedAt}.`;
-
-              insights.push({
-                id: uuidv4(),
-                timestamp: new Date(),
-                role: HeimgeistRole.Observer,
-                type: 'suggestion',
-                severity: RiskSeverity.Low,
-                title: 'Knowledge Observatory Update',
-                description: summary,
-                source: event,
-                context: {
-                  url,
-                  observatory_generated_at: generatedAt,
-                  observatory_hash: hash,
-                  internalOnly: true, // Do not propagate to Chronik
-                  reason: 'observatory_published',
-                  insight_kind: 'heimgeist.insight.v1',
-                },
-              });
-            } else {
-              this.logger.warn(`Failed to fetch observatory data from ${url}: ${response.statusText}`);
-            }
-          } finally {
-            clearTimeout(timeout);
+              rawText = fs.readFileSync(artifactPath, 'utf-8');
+          } catch (e) {
+              this.logger.error(`Failed to read validated artifact from disk: ${e}`);
+              return insights;
           }
+
+          const hash = crypto.createHash('sha256').update(rawText).digest('hex');
+
+          // Idempotency check
+          const isDuplicate = Array.from(this.insights.values()).some(
+            (i) => i.context?.observatory_hash === hash
+          );
+
+          if (isDuplicate) {
+            this.logger.log(`Skipping duplicate observatory update (hash: ${hash})`);
+            return insights;
+          }
+
+          const observatoryData = JSON.parse(rawText) as Record<string, unknown>;
+          const generatedAtRaw = observatoryData.generated_at;
+          const generatedAt =
+            typeof generatedAtRaw === 'string' && generatedAtRaw.length > 0
+              ? generatedAtRaw
+              : 'unknown';
+          const summary = `Observatory data received from ${url}. Generated at ${generatedAt}.`;
+
+          insights.push({
+            id: uuidv4(),
+            timestamp: new Date(),
+            role: HeimgeistRole.Observer,
+            type: 'suggestion',
+            severity: RiskSeverity.Low,
+            title: 'Knowledge Observatory Update',
+            description: summary,
+            source: event,
+            context: {
+              url,
+              observatory_generated_at: generatedAt,
+              observatory_hash: hash,
+              internalOnly: true, // Do not propagate to Chronik
+              reason: 'observatory_published',
+              insight_kind: 'heimgeist.insight.v1',
+            },
+          });
+
         } catch (error) {
           this.logger.error(`Error processing observatory published event: ${error}`);
+        }
+      }
+    }
+
+    // Check for Integrity Summary Published
+    if (event.type === EventType.IntegritySummaryPublished) {
+      const url = event.payload.url as string;
+      const sha = event.payload.sha as string | undefined;
+      const schemaRef = event.payload.schema_ref as string | undefined;
+
+      if (url) {
+        const saved = await this.fetchAndSaveArtifact(
+          url,
+          'integrity.summary.json',
+          'integrity.summary',
+          this.config.artifactsDir || ARTIFACTS_DIR,
+          sha,
+          schemaRef
+        );
+        if (saved) {
+          insights.push({
+            id: uuidv4(),
+            timestamp: new Date(),
+            role: HeimgeistRole.Observer,
+            type: 'suggestion',
+            severity: RiskSeverity.Low,
+            title: 'Integrity Summary Update',
+            description: `Integrity summary updated from ${url}.`,
+            source: event,
+            context: {
+              url,
+              reason: 'integrity_published',
+              insight_kind: 'heimgeist.insight.v1',
+            },
+          });
         }
       }
     }
@@ -1601,6 +1856,42 @@ export class Heimgeist {
     hash.update(insight.title);
     hash.update(insight.description);
     return hash.digest('hex');
+  }
+
+  /**
+   * Normalize SHA string to strict hex format (64 chars)
+   */
+  private normalizeSha(sha: string): string | null {
+      // Allow sha256: prefix or no prefix
+      const lower = sha.toLowerCase().trim();
+      const hex = lower.startsWith('sha256:') ? lower.slice(7) : lower;
+
+      // Check strict hex 64
+      if (/^[a-f0-9]{64}$/.test(hex)) {
+          return hex;
+      }
+      return null;
+  }
+
+  /**
+   * Validate schema reference URL host and strict match against validator contract
+   */
+  private validateSchemaRef(schemaRef: string, validatorKey: string): boolean {
+      try {
+          // Check for valid URL format
+          new URL(schemaRef);
+
+          // Strict check: if the event claims a schema ref, it MUST match the ID of the contract we are using to validate.
+          const contractId = this.contractIds.get(validatorKey);
+          if (contractId && contractId !== schemaRef) {
+              this.logger.warn(`Schema Ref Mismatch: Event claims ${schemaRef}, but Validator uses ${contractId}`);
+              return false;
+          }
+
+          return true;
+      } catch (e) {
+          return false;
+      }
   }
 
   /**

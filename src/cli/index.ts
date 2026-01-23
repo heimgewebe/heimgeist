@@ -1,7 +1,14 @@
 #!/usr/bin/env node
 
 import { Command } from 'commander';
-import { createHeimgeist, Heimgeist, HeimgeistCoreLoop, MockChronikClient } from '../core';
+import {
+  createHeimgeist,
+  Heimgeist,
+  HeimgeistCoreLoop,
+  MockChronikClient,
+  RealChronikClient,
+  ChronikClient,
+} from '../core';
 import { getAutonomyLevelName, loadConfig } from '../config';
 import { startServer } from '../api';
 import { RiskSeverity, EventType, ChronikEvent } from '../types';
@@ -414,25 +421,38 @@ program
     console.log('\nStarting Heimgeist Core Loop...\n');
 
     const config = loadConfig();
-    const chronik = new MockChronikClient();
+    let chronik: ChronikClient;
+
+    if (process.env.CHRONIK_INGEST_URL || process.env.CHRONIK_API_URL) {
+      console.log('Using Real Chronik Client');
+      chronik = new RealChronikClient();
+    } else {
+      console.log('Using Mock Chronik Client (No CHRONIK_XXX_URL configured)');
+      chronik = new MockChronikClient();
+    }
 
     // Use configured autonomy level or default to Warning (2)
     const loop = new HeimgeistCoreLoop(chronik, config.autonomyLevel);
 
     if (options.injectFailure) {
-      console.log('Injecting simulated Critical Incident...');
-      chronik.addEvent({
-        id: uuidv4(),
-        type: EventType.IncidentDetected,
-        timestamp: new Date(),
-        source: 'monitoring',
-        payload: {
-          incident_id: 'INC-123',
-          severity: RiskSeverity.Critical,
-          description: 'Database meltdown',
-          affected_services: ['api', 'db'],
-        },
-      });
+      // We can only inject into Mock client easily via addEvent method which is specific to Mock
+      if (chronik instanceof MockChronikClient) {
+        console.log('Injecting simulated Critical Incident...');
+        chronik.addEvent({
+          id: uuidv4(),
+          type: EventType.IncidentDetected,
+          timestamp: new Date(),
+          source: 'monitoring',
+          payload: {
+            incident_id: 'INC-123',
+            severity: RiskSeverity.Critical,
+            description: 'Database meltdown',
+            affected_services: ['api', 'db'],
+          },
+        });
+      } else {
+        console.warn('Cannot inject failure into Real Chronik Client via CLI flag.');
+      }
     }
 
     // Handle signals to stop gracefully
