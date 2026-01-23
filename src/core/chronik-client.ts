@@ -121,14 +121,14 @@ export class RealChronikClient implements ChronikClient {
                 if (body.events && body.events.length > 0) {
                     console.warn('[ChronikClient] Received events but no next_cursor. Pagination might be stuck.');
                 }
+                if (body.has_more) {
+                    console.warn('[ChronikClient] Contract violation: has_more=true but no next_cursor provided. Stopping poll.');
+                }
                 return null;
             }
 
             // Robustly handle next_cursor as string, even if API returns number
             const rawNext = body.next_cursor;
-            if (rawNext === null || rawNext === undefined) {
-                return null;
-            }
             const nextCursor = typeof rawNext === 'string' ? rawNext : String(rawNext);
 
             // Stalled Cursor Detection

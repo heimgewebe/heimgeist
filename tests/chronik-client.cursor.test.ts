@@ -60,4 +60,36 @@ describe('RealChronikClient Cursor Handling', () => {
         const secondUrl = new URL(mockFetch.mock.calls[1][0] as string);
         expect(secondUrl.searchParams.get('cursor')).toBe('12345');
     });
+
+    it('warns and stops if has_more=true but no cursor provided', async () => {
+        const mockFetch = jest.fn();
+        global.fetch = mockFetch;
+        const consoleSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
+
+        // Response with has_more=true but missing next_cursor
+        mockFetch.mockResolvedValueOnce({
+            ok: true,
+            json: async () => ({
+                events: [],
+                has_more: true
+                // next_cursor missing
+            })
+        } as any);
+
+        mockedFs.readFileSync.mockImplementation(() => {
+             throw new Error('File not found');
+        });
+
+        await client.nextEvent(['some-type']);
+
+        // Verify warning logged
+        expect(consoleSpy).toHaveBeenCalledWith(
+            expect.stringContaining('Contract violation')
+        );
+
+        // Verify NO cursor write happened (to avoid corruption)
+        expect(mockedFs.writeFileSync).not.toHaveBeenCalled();
+
+        consoleSpy.mockRestore();
+    });
 });
