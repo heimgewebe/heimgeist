@@ -76,7 +76,7 @@ export class RealChronikClient implements ChronikClient {
     // Loop limited to prevent infinite blocking, but high enough to skip sparse streams.
     // CHRONIK_MAX_SKIP defaults to 50.
     const parsedSkips = parseInt(process.env.CHRONIK_MAX_SKIP || '50', 10);
-    const maxSkips = Number.isFinite(parsedSkips) ? parsedSkips : 50;
+    const maxSkips = Number.isFinite(parsedSkips) && parsedSkips > 0 ? parsedSkips : 50;
     let currentCursor = this.getCursor();
 
     for (let i = 0; i < maxSkips; i++) {
@@ -107,7 +107,7 @@ export class RealChronikClient implements ChronikClient {
             // next_cursor is treated as string to support opaque cursors (e.g. ULID, base64).
             const body = await response.json() as {
                 events: ChronikEvent[];
-                next_cursor?: string | null;
+                next_cursor?: string | number | null;
                 has_more?: boolean;
             };
 
@@ -125,7 +125,11 @@ export class RealChronikClient implements ChronikClient {
             }
 
             // Robustly handle next_cursor as string, even if API returns number
-            const nextCursor = typeof body.next_cursor === 'string' ? body.next_cursor : String(body.next_cursor);
+            const rawNext = body.next_cursor;
+            if (rawNext === null || rawNext === undefined) {
+                return null;
+            }
+            const nextCursor = typeof rawNext === 'string' ? rawNext : String(rawNext);
 
             // Stalled Cursor Detection
             if (currentCursor !== null && nextCursor === currentCursor) {

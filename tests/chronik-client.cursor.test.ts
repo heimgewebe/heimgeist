@@ -1,6 +1,5 @@
 import { RealChronikClient } from '../src/core/chronik-client';
 import * as fs from 'fs';
-import { STATE_DIR } from '../src/config/state-paths';
 
 jest.mock('fs');
 const mockedFs = fs as jest.Mocked<typeof fs>;
@@ -31,7 +30,7 @@ describe('RealChronikClient Cursor Handling', () => {
                 next_cursor: 12345,
                 has_more: true
             })
-        });
+        } as any);
 
         // Second response: explicitly stop the loop by returning no events + has_more=false + no cursor
         mockFetch.mockResolvedValueOnce({
@@ -41,7 +40,7 @@ describe('RealChronikClient Cursor Handling', () => {
                 next_cursor: null,
                 has_more: false
             })
-        });
+        } as any);
 
         // Mock readFileSync to simulate no initial cursor file
         mockedFs.readFileSync.mockImplementation(() => {
