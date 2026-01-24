@@ -90,6 +90,9 @@ describe('RealChronikClient Cursor Handling', () => {
         // Verify NO cursor write happened (to avoid corruption)
         expect(mockedFs.writeFileSync).not.toHaveBeenCalled();
 
+        // Verify loop stopped immediately (only 1 call)
+        expect(mockFetch).toHaveBeenCalledTimes(1);
+
         consoleSpy.mockRestore();
     });
 });
