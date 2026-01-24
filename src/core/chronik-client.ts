@@ -12,6 +12,7 @@ export class RealChronikClient implements ChronikClient {
   private eventsUrl: string;
   private cursorFile: string;
   private domain: string;
+  private cursorWriteErrorLogged: boolean = false;
 
   constructor(ingestUrl?: string, eventsUrl?: string) {
     // Defaults assume standard service topology (base URL)
@@ -69,7 +70,16 @@ export class RealChronikClient implements ChronikClient {
   private setCursor(cursor: string): void {
       try {
           fs.writeFileSync(this.cursorFile, `${cursor}\n`);
-      } catch (e) { /* ignore */ }
+          // Reset error flag on successful write to allow future warnings if it fails again
+          if (this.cursorWriteErrorLogged) {
+              this.cursorWriteErrorLogged = false;
+          }
+      } catch (e) {
+          if (!this.cursorWriteErrorLogged) {
+              console.warn(`[ChronikClient] Failed to persist cursor to ${this.cursorFile}: ${e}`);
+              this.cursorWriteErrorLogged = true;
+          }
+      }
   }
 
   async nextEvent(types: string[]): Promise<ChronikEvent | null> {
