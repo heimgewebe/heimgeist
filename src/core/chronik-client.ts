@@ -69,6 +69,7 @@ export class RealChronikClient implements ChronikClient {
 
   private setCursor(cursor: string): void {
       try {
+          fs.mkdirSync(path.dirname(this.cursorFile), { recursive: true });
           fs.writeFileSync(this.cursorFile, `${cursor}\n`);
           // Reset error flag on successful write to allow future warnings if it fails again
           if (this.cursorWriteErrorLogged) {
@@ -121,9 +122,9 @@ export class RealChronikClient implements ChronikClient {
                 has_more?: boolean;
             };
 
-            // If events > 0 but next_cursor is missing, we check has_more.
-            // If has_more is explicitly false, we reached end.
-            if (body.next_cursor === undefined || body.next_cursor === null) {
+            // Robustly handle next_cursor as string, even if API returns number
+            const rawNext = body.next_cursor;
+            if (rawNext === undefined || rawNext === null) {
                 if (body.has_more === false) {
                     return null; // Clean EOF
                 }
@@ -137,8 +138,6 @@ export class RealChronikClient implements ChronikClient {
                 return null;
             }
 
-            // Robustly handle next_cursor as string, even if API returns number
-            const rawNext = body.next_cursor;
             const nextCursor = typeof rawNext === 'string' ? rawNext : String(rawNext);
 
             // Stalled Cursor Detection

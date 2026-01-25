@@ -59,6 +59,9 @@ describe('RealChronikClient Cursor Handling', () => {
         expect(mockFetch).toHaveBeenCalledTimes(2);
         const secondUrl = new URL(mockFetch.mock.calls[1][0] as string);
         expect(secondUrl.searchParams.get('cursor')).toBe('12345');
+
+        // Verify cursor was written exactly once (no subsequent corruption)
+        expect(mockedFs.writeFileSync).toHaveBeenCalledTimes(1);
     });
 
     it('warns and stops if has_more=true but no cursor provided', async () => {
