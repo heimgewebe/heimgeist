@@ -217,7 +217,7 @@ Heimgeist connects to Chronik via the configured environment variables:
 - `CHRONIK_TOKEN`: Auth token for Chronik API (sent as `X-Auth` header). Required for RealChronikClient.
 - `CHRONIK_MAX_SKIP`: Maximum consecutive non-matching events to skip before pausing polling (default: 50).
 
-Heimgeist manages its own event cursor in `STATE_DIR/chronik.cursor`. `STATE_DIR` is defined as `heimgeist_state/` by the internal state contract.
+Heimgeist manages its own event cursor in `STATE_DIR/chronik.cursor`. `STATE_DIR` is defined as `heimgeist_state/` by the external ecosystem contract.
 **Note:** Heimgeist consumes events from this domain exclusively. Skipped events (due to type mismatch) are considered "consumed" to advance the cursor. Do not share this domain/cursor with other independent consumers unless they are compatible replicas.
 
 ## Artifact Validation
