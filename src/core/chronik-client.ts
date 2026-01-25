@@ -12,6 +12,7 @@ export class RealChronikClient implements ChronikClient {
   private eventsUrl: string;
   private cursorFile: string;
   private domain: string;
+  private cursorWriteErrorLogged: boolean = false;
 
   constructor(ingestUrl?: string, eventsUrl?: string) {
     // Defaults assume standard service topology (base URL)
@@ -68,14 +69,25 @@ export class RealChronikClient implements ChronikClient {
 
   private setCursor(cursor: string): void {
       try {
-          fs.writeFileSync(this.cursorFile, cursor);
-      } catch (e) { /* ignore */ }
+          fs.mkdirSync(path.dirname(this.cursorFile), { recursive: true });
+          fs.writeFileSync(this.cursorFile, `${cursor}\n`);
+          // Reset error flag on successful write to allow future warnings if it fails again
+          if (this.cursorWriteErrorLogged) {
+              this.cursorWriteErrorLogged = false;
+          }
+      } catch (e) {
+          if (!this.cursorWriteErrorLogged) {
+              console.warn(`[ChronikClient] Failed to persist cursor to ${this.cursorFile}: ${e}`);
+              this.cursorWriteErrorLogged = true;
+          }
+      }
   }
 
   async nextEvent(types: string[]): Promise<ChronikEvent | null> {
     // Loop limited to prevent infinite blocking, but high enough to skip sparse streams.
     // CHRONIK_MAX_SKIP defaults to 50.
-    const maxSkips = parseInt(process.env.CHRONIK_MAX_SKIP || '50', 10);
+    const parsedSkips = parseInt(process.env.CHRONIK_MAX_SKIP || '50', 10);
+    const maxSkips = Number.isFinite(parsedSkips) && parsedSkips > 0 ? parsedSkips : 50;
     let currentCursor = this.getCursor();
 
     for (let i = 0; i < maxSkips; i++) {
@@ -105,14 +117,14 @@ export class RealChronikClient implements ChronikClient {
             // Explicitly cast response body to expected structure.
             // next_cursor is treated as string to support opaque cursors (e.g. ULID, base64).
             const body = await response.json() as {
-                events: ChronikEvent[],
-                next_cursor?: string | number | null,
-                has_more?: boolean
+                events: ChronikEvent[];
+                next_cursor?: string | number | null;
+                has_more?: boolean;
             };
 
-            // If events > 0 but next_cursor is missing, we check has_more.
-            // If has_more is explicitly false, we reached end.
-            if (body.next_cursor === undefined || body.next_cursor === null) {
+            // Robustly handle next_cursor as string, even if API returns number
+            const rawNext = body.next_cursor;
+            if (rawNext === undefined || rawNext === null) {
                 if (body.has_more === false) {
                     return null; // Clean EOF
                 }
@@ -120,11 +132,13 @@ export class RealChronikClient implements ChronikClient {
                 if (body.events && body.events.length > 0) {
                     console.warn('[ChronikClient] Received events but no next_cursor. Pagination might be stuck.');
                 }
+                if (body.has_more) {
+                    console.warn('[ChronikClient] Contract violation: has_more=true but no next_cursor provided. Stopping poll.');
+                }
                 return null;
             }
 
-            // Robustly handle next_cursor as string, even if API returns number
-            const nextCursor = String(body.next_cursor);
+            const nextCursor = typeof rawNext === 'string' ? rawNext : String(rawNext);
 
             // Stalled Cursor Detection
             if (currentCursor !== null && nextCursor === currentCursor) {
