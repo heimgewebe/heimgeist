@@ -129,52 +129,60 @@ export class Heimgeist {
    * Load state from persistence
    */
   private loadState(): void {
+    if (this.config.persistenceEnabled === false) return;
+
+    this.refreshState();
+
+    // Reset counters as we are starting fresh
+    this.eventsProcessed = 0;
+  }
+
+  /**
+   * Refresh state from persistence (Runtime update)
+   * Reloads insights and actions to pick up external changes (e.g. manual approval).
+   */
+  public refreshState(): void {
     try {
-      // Safety check just in case
       if (this.config.persistenceEnabled === false) return;
 
-      if (!fs.existsSync(INSIGHTS_DIR)) return;
-
-      const insightFiles = fs.readdirSync(INSIGHTS_DIR);
-      for (const file of insightFiles) {
-        if (file.endsWith('.json')) {
-          try {
-            const content = fs.readFileSync(path.join(INSIGHTS_DIR, file), 'utf-8');
-            const json = JSON.parse(content);
-            // Support legacy (raw Insight) and new (Event Envelope) format
-            let insight: Insight;
-            if (json.kind === 'heimgeist.insight' && json.data && json.data.origin) {
-               insight = json.data.origin as Insight;
-            } else {
-               insight = json as Insight;
+      if (fs.existsSync(INSIGHTS_DIR)) {
+        const insightFiles = fs.readdirSync(INSIGHTS_DIR);
+        for (const file of insightFiles) {
+          if (file.endsWith('.json')) {
+            try {
+              const content = fs.readFileSync(path.join(INSIGHTS_DIR, file), 'utf-8');
+              const json = JSON.parse(content);
+              // Support legacy (raw Insight) and new (Event Envelope) format
+              let insight: Insight;
+              if (json.kind === 'heimgeist.insight' && json.data && json.data.origin) {
+                insight = json.data.origin as Insight;
+              } else {
+                insight = json as Insight;
+              }
+              this.insights.set(insight.id, insight);
+            } catch (e) {
+              this.logger.warn(`Failed to load insight ${file}: ${e}`);
             }
-            this.insights.set(insight.id, insight);
-          } catch (e) {
-            this.logger.warn(`Failed to load insight ${file}: ${e}`);
           }
         }
       }
 
-      if (!fs.existsSync(ACTIONS_DIR)) return;
-
-      const actionFiles = fs.readdirSync(ACTIONS_DIR);
-      for (const file of actionFiles) {
-        if (file.endsWith('.json')) {
-          try {
-            const content = fs.readFileSync(path.join(ACTIONS_DIR, file), 'utf-8');
-            const action = JSON.parse(content) as PlannedAction;
-            this.plannedActions.set(action.id, action);
-          } catch (e) {
-            this.logger.warn(`Failed to load action ${file}: ${e}`);
+      if (fs.existsSync(ACTIONS_DIR)) {
+        const actionFiles = fs.readdirSync(ACTIONS_DIR);
+        for (const file of actionFiles) {
+          if (file.endsWith('.json')) {
+            try {
+              const content = fs.readFileSync(path.join(ACTIONS_DIR, file), 'utf-8');
+              const action = JSON.parse(content) as PlannedAction;
+              this.plannedActions.set(action.id, action);
+            } catch (e) {
+              this.logger.warn(`Failed to load action ${file}: ${e}`);
+            }
           }
         }
       }
-
-      // Update counters based on loaded state
-      this.eventsProcessed = 0; // Reset, as we don't persist event count yet
-
     } catch (error) {
-      this.logger.warn(`Failed to load state: ${error}`);
+      this.logger.warn(`Failed to refresh state: ${error}`);
     }
   }
 

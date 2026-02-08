@@ -50,6 +50,12 @@ export class SelfModel {
   public update(signals: SystemSignals): boolean {
     const basis_signals: string[] = [];
 
+    // Preserve manual signals
+    if (this.state.basis_signals && Array.isArray(this.state.basis_signals)) {
+      const manualSignals = this.state.basis_signals.filter((s) => s.startsWith('Manual'));
+      basis_signals.push(...manualSignals);
+    }
+
     // 1. Calculate Fatigue
     // Heuristic: High CPU/Memory or many open actions causes fatigue
     let fatigue = 0.0;
@@ -163,7 +169,10 @@ export class SelfModel {
         next = 'reflective'; // "Sit back and think"
     }
     else if (this.state.confidence > 0.8 && this.state.risk_tension < 0.3) {
+      // Only promote to aware if we are not dormant (requires manual wake-up)
+      if (current !== 'dormant') {
         next = 'aware'; // "Alert and ready"
+      }
     }
     // Default fallback if not dormant
     else if (current !== 'dormant') {
