@@ -185,11 +185,6 @@ export class CommandParser {
         }
     }
 
-    if (command.command === 'reflect') {
-        // Optional last=10
-        // No strict check needed for optional args
-    }
-
     return { valid: true };
   }
 
