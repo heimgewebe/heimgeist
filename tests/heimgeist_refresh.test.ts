@@ -1,4 +1,4 @@
-import { Heimgeist, createHeimgeist } from '../src/core/heimgeist';
+import { createHeimgeist, type Heimgeist } from '../src/core/heimgeist';
 import { PlannedAction, RiskSeverity, HeimgeistRole } from '../src/types';
 import * as fs from 'fs';
 import * as path from 'path';
