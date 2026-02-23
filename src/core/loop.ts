@@ -12,6 +12,8 @@ import { defaultLogger, Logger } from './logger';
 // though it is preferred to import from types
 export { ChronikClient };
 
+const REFRESH_THROTTLE_MS = 5000;
+
 export class HeimgeistCoreLoop {
   private running = false;
   private chronik: ChronikClient;
@@ -56,7 +58,7 @@ export class HeimgeistCoreLoop {
     // 0. Meta-Cognitive Update
     // Refresh state from disk to pick up external changes (e.g. manual approvals)
     // Throttled to avoid excessive I/O (max every 5s)
-    if (Date.now() - this.lastRefresh > 5000) {
+    if (Date.now() - this.lastRefresh > REFRESH_THROTTLE_MS) {
       this.heimgeist.refreshState();
       this.lastRefresh = Date.now();
     }

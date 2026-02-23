@@ -11,6 +11,7 @@ export class SelfModel {
   private readonly CONFIDENCE_THRESHOLD = 0.35;
   private readonly RISK_TENSION_THRESHOLD = 0.6;
   private readonly MAX_BASIS_SIGNALS = 50;
+  private readonly MANUAL_SIGNAL_PREFIX = 'Manual';
 
   constructor(initialState?: SelfModelState) {
     this.store = new SelfStateStore();
@@ -52,7 +53,9 @@ export class SelfModel {
 
     // Preserve manual signals
     if (this.state.basis_signals && Array.isArray(this.state.basis_signals)) {
-      const manualSignals = this.state.basis_signals.filter((s) => s.startsWith('Manual'));
+      const manualSignals = this.state.basis_signals.filter((s) =>
+        s.startsWith(this.MANUAL_SIGNAL_PREFIX)
+      );
       basis_signals.push(...manualSignals);
     }
 
