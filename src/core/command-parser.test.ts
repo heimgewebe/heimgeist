@@ -189,6 +189,69 @@ describe('CommandParser', () => {
         expect(valid.valid).toBe(true);
     });
 
+    it('should validate reflect command without args', () => {
+        const valid = CommandParser.validateCommand({
+            tool: 'self',
+            command: 'reflect',
+            args: [],
+            id: '1',
+            timestamp: new Date(),
+            context
+        });
+        expect(valid.valid).toBe(true);
+    });
+
+    it('should validate reflect command with valid last arg', () => {
+        const valid = CommandParser.validateCommand({
+            tool: 'self',
+            command: 'reflect',
+            args: ['last=50'],
+            id: '1',
+            timestamp: new Date(),
+            context
+        });
+        expect(valid.valid).toBe(true);
+    });
+
+    it('should reject reflect command with invalid last format', () => {
+        const valid = CommandParser.validateCommand({
+            tool: 'self',
+            command: 'reflect',
+            args: ['last=abc'],
+            id: '1',
+            timestamp: new Date(),
+            context
+        });
+        expect(valid.valid).toBe(false);
+        expect(valid.error).toContain('Expected last=<n>');
+    });
+
+    it('should reject reflect command with out of range last value', () => {
+        const valid = CommandParser.validateCommand({
+            tool: 'self',
+            command: 'reflect',
+            args: ['last=200'],
+            id: '1',
+            timestamp: new Date(),
+            context
+        });
+        expect(valid.valid).toBe(false);
+        expect(valid.error).toContain('between 1 and 100');
+    });
+
+    it('should reject reflect command with multiple args', () => {
+        const valid = CommandParser.validateCommand({
+            tool: 'self',
+            command: 'reflect',
+            args: ['last=10', 'foo=bar'],
+            id: '1',
+            timestamp: new Date(),
+            context
+        });
+        expect(valid.valid).toBe(false);
+        expect(valid.error).toContain('at most one argument');
+    });
+
     it('should reject invalid self command', () => {
         const valid = CommandParser.validateCommand({
             tool: 'self',
