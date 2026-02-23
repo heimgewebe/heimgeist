@@ -55,17 +55,14 @@ describe('Heimgeist.refreshState', () => {
       const mockAction = createMockAction(actionId, 'approved');
 
       (fs.existsSync as jest.Mock).mockReturnValue(true);
-
-      // Mock readdir to return our file when querying ACTIONS_DIR
-      (fs.readdirSync as jest.Mock).mockImplementation((p: string) => {
-          if (p === ACTIONS_DIR) return ['action-123.json'];
+      (fs.readdirSync as jest.Mock).mockImplementation((dir: string) => {
+          if (dir === '/mock/insights') return [];
+          if (dir === '/mock/actions') return ['action-123.json'];
           return [];
       });
-
-      // Mock readFile to return the content
-      (fs.readFileSync as jest.Mock).mockImplementation((p: string) => {
-          if (p.includes(actionId)) return JSON.stringify(mockAction);
-          return '';
+      (fs.readFileSync as jest.Mock).mockImplementation((filepath: string) => {
+          if (filepath === '/mock/actions/action-123.json') return JSON.stringify(updatedAction);
+          return '{}';
       });
 
       // 2. Call refreshState
