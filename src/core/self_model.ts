@@ -146,13 +146,6 @@ export class SelfModel {
    * Determine autonomy level based on internal state
    * "Regel: hohe risk_tension + niedrige confidence ⇒ Wechsel zu critical"
    * "Hysterese verpflichtend (kein Flip-Flop)"
-   *
-   * Dormant semantics: 'dormant' is a manual-override state.
-   * Safety-escape transitions (→ 'critical') are always allowed regardless of dormant,
-   * so the system can still escalate in emergencies.
-   * Optimization/activity transitions (→ 'aware', fallback defaults) are blocked from
-   * 'dormant' and require an explicit manual wake-up.
-   * Fatigue-driven rest (→ 'reflective') is also allowed from 'dormant' as a safety measure.
    */
   private updateAutonomyLevel(): void {
     const current = this.state.autonomy_level;

@@ -17,6 +17,7 @@ export class HeimgeistCoreLoop {
   private chronik: ChronikClient;
   private heimgeist: Heimgeist;
   private logger: Logger;
+  private lastRefresh = 0;
 
   constructor(chronik: ChronikClient, autonomyLevel: AutonomyLevel = AutonomyLevel.Warning) {
     this.chronik = chronik;
@@ -54,7 +55,11 @@ export class HeimgeistCoreLoop {
   async tick() {
     // 0. Meta-Cognitive Update
     // Refresh state from disk to pick up external changes (e.g. manual approvals)
-    this.heimgeist.refreshState();
+    // Throttled to avoid excessive I/O (max every 5s)
+    if (Date.now() - this.lastRefresh > 5000) {
+      this.heimgeist.refreshState();
+      this.lastRefresh = Date.now();
+    }
 
     // Fetch signals (mocked for now, in real impl would come from HausKI/Metrics)
     // "vor Analyse: self_model.update(signals)"

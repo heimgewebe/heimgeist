@@ -1,7 +1,6 @@
 import { Heimgeist, createHeimgeist } from '../src/core/heimgeist';
 import { PlannedAction, RiskSeverity, HeimgeistRole } from '../src/types';
 import * as fs from 'fs';
-import * as path from 'path';
 import { ACTIONS_DIR, INSIGHTS_DIR } from '../src/config/state-paths';
 
 // Mock fs and config
@@ -21,6 +20,8 @@ describe('Heimgeist.refreshState', () => {
     (fs.existsSync as jest.Mock).mockReturnValue(true);
     // Default empty directory listings
     (fs.readdirSync as jest.Mock).mockImplementation((p: string) => []);
+    // Default empty object for files (valid JSON) to avoid parse errors
+    (fs.readFileSync as jest.Mock).mockReturnValue('{}');
 
     // Create instance (will call loadState -> refreshState)
     heimgeist = createHeimgeist({
@@ -55,13 +56,17 @@ describe('Heimgeist.refreshState', () => {
       const mockAction = createMockAction(actionId, 'approved');
 
       (fs.existsSync as jest.Mock).mockReturnValue(true);
-      (fs.readdirSync as jest.Mock).mockImplementation((dir: string) => {
-          if (dir === '/mock/insights') return [];
-          if (dir === '/mock/actions') return ['action-123.json'];
+
+      // Mock readdir to return our file when querying ACTIONS_DIR
+      (fs.readdirSync as jest.Mock).mockImplementation((p: string) => {
+          if (p === ACTIONS_DIR) return ['action-123.json'];
+          if (p === INSIGHTS_DIR) return [];
           return [];
       });
-      (fs.readFileSync as jest.Mock).mockImplementation((filepath: string) => {
-          if (filepath === '/mock/actions/action-123.json') return JSON.stringify(updatedAction);
+
+      // Mock readFile to return the content
+      (fs.readFileSync as jest.Mock).mockImplementation((p: string) => {
+          if (p.includes(actionId)) return JSON.stringify(mockAction);
           return '{}';
       });
 
@@ -88,7 +93,7 @@ describe('Heimgeist.refreshState', () => {
       });
       (fs.readFileSync as jest.Mock).mockImplementation((p: string) => {
           if (p.includes(actionId)) return JSON.stringify(mockAction);
-          return '';
+          return '{}';
       });
 
       heimgeist.refreshState();
@@ -119,12 +124,15 @@ describe('Heimgeist.refreshState', () => {
           if (p === ACTIONS_DIR) return ['bad.json'];
           return [];
       });
-      (fs.readFileSync as jest.Mock).mockImplementation(() => 'invalid json');
+      (fs.readFileSync as jest.Mock).mockImplementation((p: string) => {
+          if (p.includes('bad.json')) return 'invalid json';
+          return '{}';
+      });
 
       // Should not throw, just log warning
       expect(() => heimgeist.refreshState()).not.toThrow();
 
-      // Should result in empty state
+      // Should result in empty state (invalid file skipped)
       expect(heimgeist.getPlannedActions()).toHaveLength(0);
   });
 });
