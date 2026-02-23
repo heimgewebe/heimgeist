@@ -11,6 +11,7 @@ export class SelfModel {
   private readonly CONFIDENCE_THRESHOLD = 0.35;
   private readonly RISK_TENSION_THRESHOLD = 0.6;
   private readonly MAX_BASIS_SIGNALS = 50;
+  private readonly MANUAL_SIGNAL_PREFIX = 'Manual';
 
   constructor(initialState?: SelfModelState) {
     this.store = new SelfStateStore();
@@ -49,6 +50,14 @@ export class SelfModel {
    */
   public update(signals: SystemSignals): boolean {
     const basis_signals: string[] = [];
+
+    // Preserve manual signals
+    if (this.state.basis_signals && Array.isArray(this.state.basis_signals)) {
+      const manualSignals = this.state.basis_signals.filter((s) =>
+        s.startsWith(this.MANUAL_SIGNAL_PREFIX)
+      );
+      basis_signals.push(...manualSignals);
+    }
 
     // 1. Calculate Fatigue
     // Heuristic: High CPU/Memory or many open actions causes fatigue
@@ -163,7 +172,10 @@ export class SelfModel {
         next = 'reflective'; // "Sit back and think"
     }
     else if (this.state.confidence > 0.8 && this.state.risk_tension < 0.3) {
+      // Only promote to aware if we are not dormant (requires manual wake-up)
+      if (current !== 'dormant') {
         next = 'aware'; // "Alert and ready"
+      }
     }
     // Default fallback if not dormant
     else if (current !== 'dormant') {

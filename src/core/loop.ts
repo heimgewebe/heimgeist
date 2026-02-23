@@ -12,11 +12,14 @@ import { defaultLogger, Logger } from './logger';
 // though it is preferred to import from types
 export { ChronikClient };
 
+const REFRESH_THROTTLE_MS = 5000;
+
 export class HeimgeistCoreLoop {
   private running = false;
   private chronik: ChronikClient;
   private heimgeist: Heimgeist;
   private logger: Logger;
+  private lastRefresh = 0;
 
   constructor(chronik: ChronikClient, autonomyLevel: AutonomyLevel = AutonomyLevel.Warning) {
     this.chronik = chronik;
@@ -53,13 +56,23 @@ export class HeimgeistCoreLoop {
 
   async tick() {
     // 0. Meta-Cognitive Update
+    // Refresh state from disk to pick up external changes (e.g. manual approvals)
+    // Throttled to avoid excessive I/O (max every 5s)
+    if (Date.now() - this.lastRefresh > REFRESH_THROTTLE_MS) {
+      this.heimgeist.refreshState();
+      this.lastRefresh = Date.now();
+    }
+
     // Fetch signals (mocked for now, in real impl would come from HausKI/Metrics)
     // "vor Analyse: self_model.update(signals)"
+    const mem = process.memoryUsage();
+    const heapUsedPct = Math.round((mem.heapUsed / mem.heapTotal) * 100);
+
     const mockSignals = {
-        // Simple mock: stable load to prevent self-state noise
-        cpu_load: 20,
-        memory_pressure: 40,
-        // We could calculate failure rate from heimgeist stats if exposed
+      // Simple mock: stable load to prevent self-state noise
+      cpu_load: 20,
+      memory_pressure: heapUsedPct,
+      // We could calculate failure rate from heimgeist stats if exposed
     };
     this.heimgeist.updateSelfModel(mockSignals);
 
