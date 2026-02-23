@@ -140,15 +140,16 @@ export class Heimgeist {
   /**
    * Refresh state from persistence (Runtime update)
    * Reloads insights and actions to pick up external changes (e.g. manual approval).
+   * Implements "Disk as Source-of-Truth": rebuilds internal maps to ensure deleted files are removed.
    */
   public refreshState(): void {
     try {
       if (this.config.persistenceEnabled === false) return;
 
-      // Build fresh Maps so disk is the source of truth (deleted files disappear from memory)
-      const nextInsights: Map<string, Insight> = new Map();
-      const nextActions: Map<string, PlannedAction> = new Map();
+      const nextInsights = new Map<string, Insight>();
+      const nextActions = new Map<string, PlannedAction>();
 
+      // Load Insights
       if (fs.existsSync(INSIGHTS_DIR)) {
         const insightFiles = fs.readdirSync(INSIGHTS_DIR);
         for (const file of insightFiles) {
@@ -171,6 +172,7 @@ export class Heimgeist {
         }
       }
 
+      // Load Actions
       if (fs.existsSync(ACTIONS_DIR)) {
         const actionFiles = fs.readdirSync(ACTIONS_DIR);
         for (const file of actionFiles) {
@@ -186,9 +188,10 @@ export class Heimgeist {
         }
       }
 
-      // Swap: disk is now the authoritative source of truth
+      // Atomic swap (Source-of-Truth)
       this.insights = nextInsights;
       this.plannedActions = nextActions;
+
     } catch (error) {
       this.logger.warn(`Failed to refresh state: ${error}`);
     }
