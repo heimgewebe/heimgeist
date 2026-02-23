@@ -1,6 +1,7 @@
 import { Heimgeist, createHeimgeist } from '../src/core/heimgeist';
 import { PlannedAction, RiskSeverity, HeimgeistRole } from '../src/types';
 import * as fs from 'fs';
+import * as path from 'path';
 import { ACTIONS_DIR, INSIGHTS_DIR } from '../src/config/state-paths';
 
 // Mock fs and config
@@ -64,9 +65,11 @@ describe('Heimgeist.refreshState', () => {
           return [];
       });
 
-      // Mock readFile to return the content
+      // Mock readFile to return the content with strict path matching
       (fs.readFileSync as jest.Mock).mockImplementation((p: string) => {
-          if (p.includes(actionId)) return JSON.stringify(mockAction);
+          if (p === path.join(ACTIONS_DIR, 'action-123.json')) {
+              return JSON.stringify(mockAction);
+          }
           return '{}';
       });
 
@@ -92,7 +95,9 @@ describe('Heimgeist.refreshState', () => {
           return [];
       });
       (fs.readFileSync as jest.Mock).mockImplementation((p: string) => {
-          if (p.includes(actionId)) return JSON.stringify(mockAction);
+          if (p === path.join(ACTIONS_DIR, `${actionId}.json`)) {
+              return JSON.stringify(mockAction);
+          }
           return '{}';
       });
 
@@ -125,7 +130,7 @@ describe('Heimgeist.refreshState', () => {
           return [];
       });
       (fs.readFileSync as jest.Mock).mockImplementation((p: string) => {
-          if (p.includes('bad.json')) return 'invalid json';
+          if (p === path.join(ACTIONS_DIR, 'bad.json')) return 'invalid json';
           return '{}';
       });
 
