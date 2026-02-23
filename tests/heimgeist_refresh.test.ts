@@ -1,7 +1,6 @@
 import { Heimgeist, createHeimgeist } from '../src/core/heimgeist';
 import { PlannedAction, RiskSeverity, HeimgeistRole } from '../src/types';
 import * as fs from 'fs';
-import * as path from 'path';
 
 // Mock fs and config
 jest.mock('fs');
@@ -55,8 +54,15 @@ describe('Heimgeist.refreshState', () => {
       const updatedAction = { ...mockAction, status: 'approved' };
 
       (fs.existsSync as jest.Mock).mockReturnValue(true);
-      (fs.readdirSync as jest.Mock).mockReturnValue(['action-123.json']);
-      (fs.readFileSync as jest.Mock).mockReturnValue(JSON.stringify(updatedAction));
+      (fs.readdirSync as jest.Mock).mockImplementation((dir: string) => {
+          if (dir === '/mock/insights') return [];
+          if (dir === '/mock/actions') return ['action-123.json'];
+          return [];
+      });
+      (fs.readFileSync as jest.Mock).mockImplementation((filepath: string) => {
+          if (filepath === '/mock/actions/action-123.json') return JSON.stringify(updatedAction);
+          return '{}';
+      });
 
       // 2. Call refreshState
       heimgeist.refreshState();
@@ -66,6 +72,51 @@ describe('Heimgeist.refreshState', () => {
       expect(actions).toHaveLength(1);
       expect(actions[0].id).toBe(actionId);
       expect(actions[0].status).toBe('approved');
+  });
+
+  it('should remove actions deleted from disk on next refresh', () => {
+      const actionId = 'action-456';
+      const mockAction: PlannedAction = {
+          id: actionId,
+          timestamp: new Date(),
+          trigger: {
+              id: 'trigger-2',
+              timestamp: new Date(),
+              role: HeimgeistRole.Critic,
+              type: 'risk',
+              severity: RiskSeverity.Low,
+              title: 'Transient Risk',
+              description: 'Will be deleted'
+          },
+          steps: [],
+          requiresConfirmation: false,
+          status: 'pending'
+      };
+
+      // First refresh: action exists on disk
+      (fs.existsSync as jest.Mock).mockReturnValue(true);
+      (fs.readdirSync as jest.Mock).mockImplementation((dir: string) => {
+          if (dir === '/mock/insights') return [];
+          if (dir === '/mock/actions') return ['action-456.json'];
+          return [];
+      });
+      (fs.readFileSync as jest.Mock).mockImplementation((filepath: string) => {
+          if (filepath === '/mock/actions/action-456.json') return JSON.stringify(mockAction);
+          return '{}';
+      });
+      heimgeist.refreshState();
+      expect(heimgeist.getPlannedActions()).toHaveLength(1);
+
+      // Second refresh: action file has been deleted from disk
+      (fs.readdirSync as jest.Mock).mockImplementation((dir: string) => {
+          if (dir === '/mock/insights') return [];
+          if (dir === '/mock/actions') return [];
+          return [];
+      });
+      heimgeist.refreshState();
+
+      // Action should no longer be present in memory
+      expect(heimgeist.getPlannedActions()).toHaveLength(0);
   });
 
   it('should handle missing directories gracefully', () => {

@@ -145,6 +145,10 @@ export class Heimgeist {
     try {
       if (this.config.persistenceEnabled === false) return;
 
+      // Build fresh Maps so disk is the source of truth (deleted files disappear from memory)
+      const nextInsights: Map<string, Insight> = new Map();
+      const nextActions: Map<string, PlannedAction> = new Map();
+
       if (fs.existsSync(INSIGHTS_DIR)) {
         const insightFiles = fs.readdirSync(INSIGHTS_DIR);
         for (const file of insightFiles) {
@@ -159,7 +163,7 @@ export class Heimgeist {
               } else {
                 insight = json as Insight;
               }
-              this.insights.set(insight.id, insight);
+              nextInsights.set(insight.id, insight);
             } catch (e) {
               this.logger.warn(`Failed to load insight ${file}: ${e}`);
             }
@@ -174,13 +178,17 @@ export class Heimgeist {
             try {
               const content = fs.readFileSync(path.join(ACTIONS_DIR, file), 'utf-8');
               const action = JSON.parse(content) as PlannedAction;
-              this.plannedActions.set(action.id, action);
+              nextActions.set(action.id, action);
             } catch (e) {
               this.logger.warn(`Failed to load action ${file}: ${e}`);
             }
           }
         }
       }
+
+      // Swap: disk is now the authoritative source of truth
+      this.insights = nextInsights;
+      this.plannedActions = nextActions;
     } catch (error) {
       this.logger.warn(`Failed to refresh state: ${error}`);
     }
