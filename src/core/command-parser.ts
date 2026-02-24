@@ -185,9 +185,22 @@ export class CommandParser {
         }
     }
 
-    if (command.command === 'reflect') {
-        // Optional last=10
-        // No strict check needed for optional args
+    // Validation for reflect command (self-tool specific context)
+    if (command.tool === 'self' && command.command === 'reflect') {
+        if (command.args.length > 1) {
+            return { valid: false, error: 'reflect command accepts at most one argument' };
+        }
+        if (command.args.length === 1) {
+            const arg = command.args[0];
+            const match = arg.match(/^last=(\d+)$/);
+            if (!match) {
+                return { valid: false, error: 'Invalid reflect argument. Expected last=<n>' };
+            }
+            const val = parseInt(match[1], 10);
+            if (val < 1 || val > 100) {
+                return { valid: false, error: 'reflect last=<n> requires an integer between 1 and 100' };
+            }
+        }
     }
 
     return { valid: true };

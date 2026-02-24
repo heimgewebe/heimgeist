@@ -189,6 +189,88 @@ describe('CommandParser', () => {
         expect(valid.valid).toBe(true);
     });
 
+    it('should validate reflect command without args', () => {
+        const valid = CommandParser.validateCommand({
+            tool: 'self',
+            command: 'reflect',
+            args: [],
+            id: '1',
+            timestamp: new Date(),
+            context
+        });
+        expect(valid.valid).toBe(true);
+    });
+
+    it('should validate reflect command with valid last arg', () => {
+        const valid = CommandParser.validateCommand({
+            tool: 'self',
+            command: 'reflect',
+            args: ['last=50'],
+            id: '1',
+            timestamp: new Date(),
+            context
+        });
+        expect(valid.valid).toBe(true);
+    });
+
+    it('should reject reflect command with invalid last format', () => {
+        const valid = CommandParser.validateCommand({
+            tool: 'self',
+            command: 'reflect',
+            args: ['last=abc'],
+            id: '1',
+            timestamp: new Date(),
+            context
+        });
+        expect(valid.valid).toBe(false);
+        expect(typeof valid.error).toBe('string');
+        expect((valid.error ?? '').length).toBeGreaterThan(0);
+    });
+
+    it('should reject reflect command with out of range last value', () => {
+        const valid = CommandParser.validateCommand({
+            tool: 'self',
+            command: 'reflect',
+            args: ['last=200'],
+            id: '1',
+            timestamp: new Date(),
+            context
+        });
+        expect(valid.valid).toBe(false);
+        expect(typeof valid.error).toBe('string');
+        expect((valid.error ?? '').length).toBeGreaterThan(0);
+    });
+
+    it('should reject reflect command with multiple args', () => {
+        const valid = CommandParser.validateCommand({
+            tool: 'self',
+            command: 'reflect',
+            args: ['last=10', 'foo=bar'],
+            id: '1',
+            timestamp: new Date(),
+            context
+        });
+        expect(valid.valid).toBe(false);
+        expect(typeof valid.error).toBe('string');
+        expect((valid.error ?? '').length).toBeGreaterThan(0);
+    });
+
+    it('should reject reflect command when used with non-self tool', () => {
+        // The reflect command logic is gated to the 'self' tool context.
+        // Other tools will reject it as an unrecognized command for their tool-specific validator.
+        const valid = CommandParser.validateCommand({
+            tool: 'heimgeist',
+            command: 'reflect',
+            args: [],
+            id: '1',
+            timestamp: new Date(),
+            context
+        });
+        expect(valid.valid).toBe(false);
+        expect(typeof valid.error).toBe('string');
+        expect((valid.error ?? '').length).toBeGreaterThan(0);
+    });
+
     it('should reject invalid self command', () => {
         const valid = CommandParser.validateCommand({
             tool: 'self',
