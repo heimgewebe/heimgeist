@@ -185,6 +185,7 @@ export class CommandParser {
         }
     }
 
+    // Validation for reflect command (self-tool specific context)
     if (command.command === 'reflect') {
         if (command.args.length > 1) {
             return { valid: false, error: 'reflect command accepts at most one argument' };

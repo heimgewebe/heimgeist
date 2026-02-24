@@ -249,7 +249,22 @@ describe('CommandParser', () => {
             context
         });
         expect(valid.valid).toBe(false);
-        expect(valid.error).toContain('at most one argument');
+        expect(valid.error).toBe('reflect command accepts at most one argument');
+    });
+
+    it('should reject reflect command when used with non-self tool', () => {
+        // Validation for reflect is in validateSelfCommand, so other tools
+        // will reject it as an invalid command for their own tool context.
+        const valid = CommandParser.validateCommand({
+            tool: 'heimgeist',
+            command: 'reflect',
+            args: [],
+            id: '1',
+            timestamp: new Date(),
+            context
+        });
+        expect(valid.valid).toBe(false);
+        expect(valid.error).toContain('Invalid heimgeist command');
     });
 
     it('should reject invalid self command', () => {
