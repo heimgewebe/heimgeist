@@ -224,7 +224,7 @@ describe('CommandParser', () => {
         });
         expect(valid.valid).toBe(false);
         expect(typeof valid.error).toBe('string');
-        expect(valid.error?.length).toBeGreaterThan(0);
+        expect((valid.error ?? '').length).toBeGreaterThan(0);
     });
 
     it('should reject reflect command with out of range last value', () => {
@@ -238,7 +238,7 @@ describe('CommandParser', () => {
         });
         expect(valid.valid).toBe(false);
         expect(typeof valid.error).toBe('string');
-        expect(valid.error?.length).toBeGreaterThan(0);
+        expect((valid.error ?? '').length).toBeGreaterThan(0);
     });
 
     it('should reject reflect command with multiple args', () => {
@@ -252,7 +252,7 @@ describe('CommandParser', () => {
         });
         expect(valid.valid).toBe(false);
         expect(typeof valid.error).toBe('string');
-        expect(valid.error?.length).toBeGreaterThan(0);
+        expect((valid.error ?? '').length).toBeGreaterThan(0);
     });
 
     it('should reject reflect command when used with non-self tool', () => {
@@ -268,7 +268,7 @@ describe('CommandParser', () => {
         });
         expect(valid.valid).toBe(false);
         expect(typeof valid.error).toBe('string');
-        expect(valid.error?.length).toBeGreaterThan(0);
+        expect((valid.error ?? '').length).toBeGreaterThan(0);
     });
 
     it('should reject invalid self command', () => {
