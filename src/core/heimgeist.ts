@@ -1623,7 +1623,7 @@ export class Heimgeist {
    * Get current configuration
    */
   getConfig(): HeimgeistConfig {
-    return {
+    const config = {
       autonomyLevel: this.config.autonomyLevel,
       activeRoles: [...this.config.activeRoles],
       policies: this.config.policies.map((policy) => ({
@@ -1634,6 +1634,7 @@ export class Heimgeist {
       eventSources: this.config.eventSources.map((source) => ({ ...source })),
       outputs: this.config.outputs.map((output) => ({ ...output })),
     };
+    return this.sanitizePayload(config);
   }
 
   /**
