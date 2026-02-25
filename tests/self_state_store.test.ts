@@ -20,6 +20,7 @@ describe('SelfStateStore', () => {
   beforeEach(() => {
     jest.resetAllMocks();
     mockedFs.existsSync.mockReturnValue(true);
+    mockedFs.readdirSync.mockReturnValue([] as any);
     store = new SelfStateStore();
   });
 
@@ -158,7 +159,10 @@ describe('SelfStateStore', () => {
         'snapshot-2023-01-01T12-00-00.000Z.json',
       ];
       mockedFs.readdirSync.mockReturnValue(mockFiles as any);
-      mockedFs.readFileSync.mockReturnValue(JSON.stringify({ state: mockState }));
+      mockedFs.readFileSync.mockReturnValue(JSON.stringify({
+        timestamp: '2023-01-03T12:00:00.000Z',
+        state: mockState
+      }));
 
       const history = store.getHistory(2);
       expect(history.length).toBe(2);
