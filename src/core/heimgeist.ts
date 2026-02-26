@@ -218,8 +218,8 @@ export class Heimgeist {
   /**
    * Update Self-Model with system signals
    */
-  public updateSelfModel(signals: SystemSignals): void {
-      const persisted = this.selfModel.update(signals);
+  public async updateSelfModel(signals: SystemSignals): Promise<void> {
+      const persisted = await this.selfModel.update(signals);
       if (persisted) {
           this.writeSelfStateBundle();
           void this.publishSelfStateSnapshot();
@@ -1572,13 +1572,13 @@ export class Heimgeist {
           const cmd = step.parameters.command as string;
           const args = (step.parameters.args as string[]) || [];
 
-          if (cmd === 'reset') this.selfModel.reset();
+          if (cmd === 'reset') await this.selfModel.reset();
           if (cmd === 'set' && args) {
             const autonomyArg = args.find((a) => a.startsWith('autonomy='));
             if (autonomyArg) {
               const val = autonomyArg.split('=')[1].trim().toLowerCase();
               if (['dormant', 'aware', 'reflective', 'critical'].includes(val)) {
-                this.selfModel.setAutonomy(val as 'dormant' | 'aware' | 'reflective' | 'critical');
+                await this.selfModel.setAutonomy(val as 'dormant' | 'aware' | 'reflective' | 'critical');
               } else {
                 this.logger.warn(`Invalid autonomy level requested: ${val}`);
               }
@@ -1621,7 +1621,7 @@ export class Heimgeist {
         await this.saveAction(action);
 
         // Reflect success
-        this.selfModel.reflect(true);
+        await this.selfModel.reflect(true);
         this.writeSelfStateBundle();
         void this.publishSelfStateSnapshot();
 
@@ -1631,7 +1631,7 @@ export class Heimgeist {
       return false;
     } catch (error) {
       this.logger.error(`Failed to execute action ${actionId}: ${error}`);
-      this.selfModel.reflect(false); // Reflect failure
+      await this.selfModel.reflect(false); // Reflect failure
       this.writeSelfStateBundle();
       void this.publishSelfStateSnapshot();
       return false;

@@ -48,7 +48,7 @@ export class SelfModel {
    * Returns true if state was persisted (changed significantly or timeout), false otherwise.
    * Implements: "Initiale Ableitung (heuristisch, explizit): CI-Fehlerquote, Anzahl offener Actions..."
    */
-  public update(signals: SystemSignals): boolean {
+  public async update(signals: SystemSignals): Promise<boolean> {
     const basis_signals: string[] = [];
 
     // Preserve manual signals
@@ -136,7 +136,7 @@ export class SelfModel {
     }
 
     if (shouldPersist) {
-        this.store.save(this.state);
+        await this.store.save(this.state);
         // Deep copy state for next comparison
         this.lastPersistedState = JSON.parse(JSON.stringify(this.state));
         return true;
@@ -195,7 +195,7 @@ export class SelfModel {
    * Reflect on action outcomes to adjust self-model
    * "nach Aktion: self_model.reflect(outcome)"
    */
-  public reflect(success: boolean): void {
+  public async reflect(success: boolean): Promise<void> {
       if (success) {
           // Success boosts confidence slightly, reduces fatigue slightly?
           this.state.confidence = Math.min(1.0, this.state.confidence + 0.05);
@@ -207,7 +207,7 @@ export class SelfModel {
       }
       this.state.last_updated = new Date().toISOString();
       this.updateAutonomyLevel();
-      this.store.save(this.state);
+      await this.store.save(this.state);
   }
 
   /**
@@ -228,7 +228,7 @@ export class SelfModel {
   /**
    * Manual override or command-based reset
    */
-  public reset(): void {
+  public async reset(): Promise<void> {
       this.state = {
         confidence: 1.0,
         fatigue: 0.0,
@@ -238,17 +238,17 @@ export class SelfModel {
         basis_signals: []
       };
       this.addBasisSignal('Manual Reset');
-      this.store.save(this.state);
+      await this.store.save(this.state);
   }
 
   /**
    * Manual set
    */
-  public setAutonomy(level: 'dormant' | 'aware' | 'reflective' | 'critical'): void {
+  public async setAutonomy(level: 'dormant' | 'aware' | 'reflective' | 'critical'): Promise<void> {
       this.state.autonomy_level = level;
       this.addBasisSignal(`Manual override to ${level}`);
       this.state.last_updated = new Date().toISOString();
-      this.store.save(this.state);
+      await this.store.save(this.state);
   }
 
   /**

@@ -20,7 +20,7 @@ export class SelfStateStore {
   /**
    * Save a snapshot of the self-model
    */
-  public save(state: SelfModelState): void {
+  public async save(state: SelfModelState): Promise<void> {
     const timestamp = new Date().toISOString();
     const snapshot: SelfStateSnapshot = {
       timestamp,
@@ -33,9 +33,9 @@ export class SelfStateStore {
     const filepath = path.join(SELF_MODEL_DIR, filename);
 
     try {
-      fs.writeFileSync(filepath, JSON.stringify(snapshot, null, 2));
+      await fs.promises.writeFile(filepath, JSON.stringify(snapshot, null, 2));
       // Cleanup old snapshots, keep last 50
-      this.cleanup(50);
+      await this.cleanup(50);
     } catch (e) {
       console.error(`Failed to persist self-state snapshot: ${e}`);
     }
@@ -44,11 +44,11 @@ export class SelfStateStore {
   /**
    * Cleanup old snapshots
    */
-  public cleanup(keep: number): void {
+  public async cleanup(keep: number): Promise<void> {
     if (!fs.existsSync(SELF_MODEL_DIR)) return;
 
     try {
-      const files = fs.readdirSync(SELF_MODEL_DIR)
+      const files = (await fs.promises.readdir(SELF_MODEL_DIR))
         .filter(f => f.startsWith('snapshot-') && f.endsWith('.json'))
         .sort()
         .reverse(); // Newest first
@@ -57,7 +57,7 @@ export class SelfStateStore {
         const toDelete = files.slice(keep);
         for (const file of toDelete) {
           try {
-            fs.unlinkSync(path.join(SELF_MODEL_DIR, file));
+            await fs.promises.unlink(path.join(SELF_MODEL_DIR, file));
           } catch { /* empty */ }
         }
       }
