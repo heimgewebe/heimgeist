@@ -3,8 +3,28 @@ import { SelfModelState } from '../src/types';
 import * as fs from 'fs';
 import { SELF_MODEL_DIR } from '../src/config/state-paths';
 
-jest.mock('fs');
+// Mock both synchronous and async fs methods
+jest.mock('fs', () => ({
+  existsSync: jest.fn(),
+  mkdirSync: jest.fn(),
+  writeFileSync: jest.fn(),
+  readdirSync: jest.fn(),
+  readFileSync: jest.fn(),
+  unlinkSync: jest.fn(),
+  promises: {
+    writeFile: jest.fn().mockResolvedValue(undefined),
+    unlink: jest.fn().mockResolvedValue(undefined),
+    readdir: jest.fn().mockResolvedValue([]),
+  }
+}));
+
 const mockedFs = fs as jest.Mocked<typeof fs>;
+// Need to cast promises to jest.Mocked manually or use ts-jest utils, but casting works for now
+const mockedFsPromises = fs.promises as unknown as {
+  writeFile: jest.Mock;
+  unlink: jest.Mock;
+  readdir: jest.Mock;
+};
 
 describe('SelfStateStore', () => {
   let store: SelfStateStore;
@@ -21,38 +41,36 @@ describe('SelfStateStore', () => {
     jest.resetAllMocks();
     mockedFs.existsSync.mockReturnValue(true);
     mockedFs.readdirSync.mockReturnValue([] as any);
+    mockedFsPromises.readdir.mockResolvedValue([]);
     store = new SelfStateStore();
   });
 
   describe('save', () => {
-    it('should write a snapshot file with correct content', () => {
-      const writeSpy = mockedFs.writeFileSync;
-      store.save(mockState);
+    it('should write a snapshot file with correct content', async () => {
+      await store.save(mockState);
 
-      expect(writeSpy).toHaveBeenCalledWith(
+      expect(mockedFsPromises.writeFile).toHaveBeenCalledWith(
         expect.stringContaining(SELF_MODEL_DIR),
         expect.stringContaining('"confidence": 0.8')
       );
-      expect(writeSpy).toHaveBeenCalledWith(
+      expect(mockedFsPromises.writeFile).toHaveBeenCalledWith(
         expect.stringMatching(/snapshot-.*\.json/),
         expect.any(String)
       );
     });
 
-    it('should trigger cleanup after saving', () => {
-      const cleanupSpy = jest.spyOn(store, 'cleanup').mockImplementation(() => {});
-      store.save(mockState);
+    it('should trigger cleanup after saving', async () => {
+      const cleanupSpy = jest.spyOn(store, 'cleanup').mockImplementation(() => Promise.resolve());
+      await store.save(mockState);
       expect(cleanupSpy).toHaveBeenCalledWith(50);
       cleanupSpy.mockRestore();
     });
 
-    it('should handle fs errors gracefully', () => {
-      mockedFs.writeFileSync.mockImplementation(() => {
-        throw new Error('Disk full');
-      });
+    it('should handle fs errors gracefully', async () => {
+      mockedFsPromises.writeFile.mockRejectedValue(new Error('Disk full'));
       const consoleSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
 
-      expect(() => store.save(mockState)).not.toThrow();
+      await expect(store.save(mockState)).resolves.toBeUndefined();
       expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining('Failed to persist self-state snapshot'));
 
       consoleSpy.mockRestore();
@@ -60,15 +78,16 @@ describe('SelfStateStore', () => {
   });
 
   describe('cleanup', () => {
-    it('should delete oldest files when exceeding keep limit', () => {
+    it('should delete oldest files when exceeding keep limit', async () => {
       const mockFiles = [
         'snapshot-2023-01-03T12-00-00.000Z.json',
         'snapshot-2023-01-01T12-00-00.000Z.json',
         'snapshot-2023-01-02T12-00-00.000Z.json',
       ];
-      mockedFs.readdirSync.mockReturnValue(mockFiles as any);
+      // Mock both sync and async readdir, though cleanup uses async now
+      mockedFsPromises.readdir.mockResolvedValue(mockFiles);
 
-      store.cleanup(2);
+      await store.cleanup(2);
 
       // It should sort them:
       // 2023-01-03... (newest)
@@ -76,24 +95,24 @@ describe('SelfStateStore', () => {
       // 2023-01-01... (oldest)
       // Keep 2 newest, delete 2023-01-01...
 
-      expect(mockedFs.unlinkSync).toHaveBeenCalledTimes(1);
-      expect(mockedFs.unlinkSync).toHaveBeenCalledWith(expect.stringContaining('snapshot-2023-01-01T12-00-00.000Z.json'));
+      expect(mockedFsPromises.unlink).toHaveBeenCalledTimes(1);
+      expect(mockedFsPromises.unlink).toHaveBeenCalledWith(expect.stringContaining('snapshot-2023-01-01T12-00-00.000Z.json'));
     });
 
-    it('should do nothing if count is within limit', () => {
+    it('should do nothing if count is within limit', async () => {
       const mockFiles = [
         'snapshot-2023-01-01T12-00-00.000Z.json',
       ];
-      mockedFs.readdirSync.mockReturnValue(mockFiles as any);
+      mockedFsPromises.readdir.mockResolvedValue(mockFiles);
 
-      store.cleanup(50);
-      expect(mockedFs.unlinkSync).not.toHaveBeenCalled();
+      await store.cleanup(50);
+      expect(mockedFsPromises.unlink).not.toHaveBeenCalled();
     });
 
-    it('should handle non-existent directory', () => {
+    it('should handle non-existent directory', async () => {
       mockedFs.existsSync.mockReturnValue(false);
-      expect(() => store.cleanup(50)).not.toThrow();
-      expect(mockedFs.readdirSync).not.toHaveBeenCalled();
+      await expect(store.cleanup(50)).resolves.toBeUndefined();
+      expect(mockedFsPromises.readdir).not.toHaveBeenCalled();
     });
   });
 
