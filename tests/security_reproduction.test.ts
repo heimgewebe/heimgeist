@@ -41,11 +41,15 @@ describe('Heimgeist Configuration Disclosure Vulnerability', () => {
 
     // Check eventSources
     const source = response.body.eventSources.find((s: any) => s.name === 'sensitive-source');
+    expect(source).toBeTruthy();
     expect(source.config.token).toBe('[REDACTED]');
     expect(source.config.api_key).toBe('[REDACTED]');
 
     // Check outputs
     const output = response.body.outputs.find((o: any) => o.name === 'sensitive-output');
+    expect(output).toBeTruthy();
+    expect(output.name).toBe('sensitive-output');
     expect(output.config.secret).toBe('[REDACTED]');
+    expect(output.config.url).toBe('https://hooks.slack.com/services/T0000/B0000/XXXX');
   });
 });
