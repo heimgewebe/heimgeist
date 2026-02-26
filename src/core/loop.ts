@@ -1,9 +1,5 @@
 import { setTimeout } from 'timers/promises';
-import {
-  EventType,
-  AutonomyLevel,
-  ChronikClient,
-} from '../types';
+import { EventType, AutonomyLevel, ChronikClient } from '../types';
 import { Heimgeist, createHeimgeist } from './heimgeist';
 import { loadConfig } from '../config';
 import { defaultLogger, Logger } from './logger';
@@ -56,12 +52,12 @@ export class HeimgeistCoreLoop {
     // Fetch signals (mocked for now, in real impl would come from HausKI/Metrics)
     // "vor Analyse: self_model.update(signals)"
     const mockSignals = {
-        // Simple mock: stable load to prevent self-state noise
-        cpu_load: 20,
-        memory_pressure: 40,
-        // We could calculate failure rate from heimgeist stats if exposed
+      // Simple mock: stable load to prevent self-state noise
+      cpu_load: 20,
+      memory_pressure: 40,
+      // We could calculate failure rate from heimgeist stats if exposed
     };
-    this.heimgeist.updateSelfModel(mockSignals);
+    await this.heimgeist.updateSelfModel(mockSignals);
 
     // 1. Pull
     const event = await this.chronik.nextEvent([
@@ -91,19 +87,19 @@ export class HeimgeistCoreLoop {
 
     // Check for actions ready to execute (approved) or pending but auto-approvable
     const actionsToExecute = plannedActions.filter(
-        a => a.status === 'approved' || (a.status === 'pending' && !a.requiresConfirmation)
+      (a) => a.status === 'approved' || (a.status === 'pending' && !a.requiresConfirmation)
     );
 
     for (const action of actionsToExecute) {
-        this.logger.log(`[Auto-Exec] Executing action: ${action.id} (${action.trigger.title})`);
+      this.logger.log(`[Auto-Exec] Executing action: ${action.id} (${action.trigger.title})`);
 
-        // In a real system, we would execute the tool steps here.
-        // For simulation, we mark it as executed.
-        const success = await this.heimgeist.executeAction(action.id);
+      // In a real system, we would execute the tool steps here.
+      // For simulation, we mark it as executed.
+      const success = await this.heimgeist.executeAction(action.id);
 
-        if (!success) {
-            this.logger.warn(`Failed to execute action ${action.id}`);
-        }
+      if (!success) {
+        this.logger.warn(`Failed to execute action ${action.id}`);
+      }
     }
   }
 }

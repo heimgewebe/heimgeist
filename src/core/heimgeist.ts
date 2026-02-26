@@ -97,15 +97,17 @@ export class Heimgeist {
 
     // Pre-compile validators
     try {
-        this.validators.set('knowledge.observatory', this.ajv.compile(KnowledgeObservatoryContract));
-        this.validators.set('integrity.summary', this.ajv.compile(IntegritySummaryContract));
+      this.validators.set('knowledge.observatory', this.ajv.compile(KnowledgeObservatoryContract));
+      this.validators.set('integrity.summary', this.ajv.compile(IntegritySummaryContract));
 
-        // Store contract IDs for strict schema ref validation
-        if (KnowledgeObservatoryContract.$id) this.contractIds.set('knowledge.observatory', KnowledgeObservatoryContract.$id);
-        if (IntegritySummaryContract.$id) this.contractIds.set('integrity.summary', IntegritySummaryContract.$id);
+      // Store contract IDs for strict schema ref validation
+      if (KnowledgeObservatoryContract.$id)
+        this.contractIds.set('knowledge.observatory', KnowledgeObservatoryContract.$id);
+      if (IntegritySummaryContract.$id)
+        this.contractIds.set('integrity.summary', IntegritySummaryContract.$id);
     } catch (e) {
-        this.logger.error(`Failed to compile schemas: ${e}`);
-        this.gateHealthy = false;
+      this.logger.error(`Failed to compile schemas: ${e}`);
+      this.gateHealthy = false;
     }
 
     if (this.config.persistenceEnabled !== false) {
@@ -114,14 +116,18 @@ export class Heimgeist {
 
     // Centralized Token Check
     if (this.chronik instanceof RealChronikClient && !process.env.CHRONIK_TOKEN) {
-        this.logger.warn('Warning: Running RealChronikClient without CHRONIK_TOKEN. Ingest/Poll might fail.');
+      this.logger.warn(
+        'Warning: Running RealChronikClient without CHRONIK_TOKEN. Ingest/Poll might fail.'
+      );
     }
 
     // Runtime Environment Check: fetch API
     if (typeof fetch === 'undefined') {
-        this.logger.error('Runtime Error: Global fetch API is not available. Node.js >= 18.17.0 is required.');
-        // Degrade gracefully or fail fast? Failing fast is safer for a contract-based agent.
-        // For now, we log error which might be visible in logs, but process continues (risk of runtime crash on first fetch).
+      this.logger.error(
+        'Runtime Error: Global fetch API is not available. Node.js >= 18.17.0 is required.'
+      );
+      // Degrade gracefully or fail fast? Failing fast is safer for a contract-based agent.
+      // For now, we log error which might be visible in logs, but process continues (risk of runtime crash on first fetch).
     }
   }
 
@@ -144,9 +150,9 @@ export class Heimgeist {
             // Support legacy (raw Insight) and new (Event Envelope) format
             let insight: Insight;
             if (json.kind === 'heimgeist.insight' && json.data && json.data.origin) {
-               insight = json.data.origin as Insight;
+              insight = json.data.origin as Insight;
             } else {
-               insight = json as Insight;
+              insight = json as Insight;
             }
             this.insights.set(insight.id, insight);
           } catch (e) {
@@ -172,7 +178,6 @@ export class Heimgeist {
 
       // Update counters based on loaded state
       this.eventsProcessed = 0; // Reset, as we don't persist event count yet
-
     } catch (error) {
       this.logger.warn(`Failed to load state: ${error}`);
     }
@@ -199,47 +204,47 @@ export class Heimgeist {
   /**
    * Update Self-Model with system signals
    */
-  public updateSelfModel(signals: SystemSignals): void {
-      const persisted = this.selfModel.update(signals);
-      if (persisted) {
-          this.writeSelfStateBundle();
-          void this.publishSelfStateSnapshot();
-      }
+  public async updateSelfModel(signals: SystemSignals): Promise<void> {
+    const persisted = await this.selfModel.update(signals);
+    if (persisted) {
+      this.writeSelfStateBundle();
+      void this.publishSelfStateSnapshot();
+    }
   }
 
   /**
    * Write the Self-State artifact bundle
    */
   private writeSelfStateBundle(): void {
-      if (this.config.persistenceEnabled !== false) {
-          const state = this.selfModel.getState();
-          const history = this.selfModel.getHistory(50);
-          this.artifactWriter.write(state, history);
-      }
+    if (this.config.persistenceEnabled !== false) {
+      const state = this.selfModel.getState();
+      const history = this.selfModel.getHistory(50);
+      this.artifactWriter.write(state, history);
+    }
   }
 
   /**
    * Publish Self-State snapshot event to Chronik
    */
   private async publishSelfStateSnapshot(): Promise<void> {
-      if (!this.chronik) return;
+    if (!this.chronik) return;
 
-      const state = this.selfModel.getState();
-      const event: HeimgeistSelfStateSnapshotEvent = {
-          kind: 'heimgeist.self_state.snapshot',
-          version: 1,
-          id: uuidv4(),
-          meta: {
-              occurred_at: new Date().toISOString(),
-          },
-          data: state
-      };
+    const state = this.selfModel.getState();
+    const event: HeimgeistSelfStateSnapshotEvent = {
+      kind: 'heimgeist.self_state.snapshot',
+      version: 1,
+      id: uuidv4(),
+      meta: {
+        occurred_at: new Date().toISOString(),
+      },
+      data: state,
+    };
 
-      try {
-          await this.chronik.append(event);
-      } catch (error) {
-          this.logger.warn(`Failed to publish self-state snapshot: ${error}`);
-      }
+    try {
+      await this.chronik.append(event);
+    } catch (error) {
+      this.logger.warn(`Failed to publish self-state snapshot: ${error}`);
+    }
   }
 
   /**
@@ -288,7 +293,9 @@ export class Heimgeist {
     if (this.config.activeRoles.includes(HeimgeistRole.Archivist)) {
       const archiveResult = await this.archive(newInsights);
       if (archiveResult.failed > 0) {
-        this.logger.warn(`Archivist: ${archiveResult.success} persisted, ${archiveResult.failed} failed.`);
+        this.logger.warn(
+          `Archivist: ${archiveResult.success} persisted, ${archiveResult.failed} failed.`
+        );
       }
     }
 
@@ -308,15 +315,21 @@ export class Heimgeist {
   ): Promise<boolean> {
     // Fail fast if gate is unhealthy
     if (!this.gateHealthy) {
-        this.logger.warn('Artifact Ingest Skipped: Validation Gate is degraded (schema compilation failed).');
-        return false;
+      this.logger.warn(
+        'Artifact Ingest Skipped: Validation Gate is degraded (schema compilation failed).'
+      );
+      return false;
     }
 
     try {
       const parsedUrl = new URL(url);
 
       // Security: Host Allowlist Check
-      const productionHosts = ['github.com', 'objects.githubusercontent.com', 'raw.githubusercontent.com'];
+      const productionHosts = [
+        'github.com',
+        'objects.githubusercontent.com',
+        'raw.githubusercontent.com',
+      ];
       const devHosts = [...productionHosts, 'localhost', '127.0.0.1'];
 
       // Effective Allowlist Logic:
@@ -326,8 +339,10 @@ export class Heimgeist {
       const allowedHosts = isDevOrTest ? devHosts : productionHosts;
 
       if (!allowedHosts.includes(parsedUrl.hostname)) {
-           this.logger.warn(`Artifact URL host not allowed: ${parsedUrl.hostname} (Mode: ${isDevOrTest ? 'Dev/Test' : 'Prod'})`);
-           return false;
+        this.logger.warn(
+          `Artifact URL host not allowed: ${parsedUrl.hostname} (Mode: ${isDevOrTest ? 'Dev/Test' : 'Prod'})`
+        );
+        return false;
       }
 
       // Security: Protocol Check
@@ -358,63 +373,64 @@ export class Heimgeist {
         const sizeLimit = 1024 * 1024; // 1MB
         const contentLength = response.headers.get('content-length');
         if (contentLength && parseInt(contentLength, 10) > sizeLimit) {
-             this.logger.warn(`Artifact too large: ${contentLength} bytes`);
-             return false;
+          this.logger.warn(`Artifact too large: ${contentLength} bytes`);
+          return false;
         }
 
         rawBuffer = await response.arrayBuffer();
         if (rawBuffer.byteLength > sizeLimit) {
-             this.logger.warn(`Artifact too large: ${rawBuffer.byteLength} bytes`);
-             return false;
+          this.logger.warn(`Artifact too large: ${rawBuffer.byteLength} bytes`);
+          return false;
         }
-
       } finally {
         clearTimeout(timeout);
       }
 
       // Integrity Check (SHA256)
       if (expectedSha) {
-          const hash = crypto.createHash('sha256');
-          hash.update(new Uint8Array(rawBuffer));
-          const hashHex = hash.digest('hex');
+        const hash = crypto.createHash('sha256');
+        hash.update(new Uint8Array(rawBuffer));
+        const hashHex = hash.digest('hex');
 
-          const cleanExpectedSha = this.normalizeSha(expectedSha);
-          if (!cleanExpectedSha) {
-              this.logger.warn(`Invalid expected SHA format: ${expectedSha}`);
-              return false;
-          }
+        const cleanExpectedSha = this.normalizeSha(expectedSha);
+        if (!cleanExpectedSha) {
+          this.logger.warn(`Invalid expected SHA format: ${expectedSha}`);
+          return false;
+        }
 
-          if (hashHex !== cleanExpectedSha) {
-              this.logger.warn(`Artifact SHA mismatch for ${filename}. Expected: ${cleanExpectedSha}, Got: ${hashHex}`);
-              return false;
-          }
+        if (hashHex !== cleanExpectedSha) {
+          this.logger.warn(
+            `Artifact SHA mismatch for ${filename}. Expected: ${cleanExpectedSha}, Got: ${hashHex}`
+          );
+          return false;
+        }
       }
 
       // Parse JSON
       let data: unknown;
       try {
-          const decoder = new TextDecoder();
-          const text = decoder.decode(rawBuffer);
-          data = JSON.parse(text);
+        const decoder = new TextDecoder();
+        const text = decoder.decode(rawBuffer);
+        data = JSON.parse(text);
       } catch (e) {
-          this.logger.warn(`Failed to parse artifact JSON: ${e}`);
-          return false;
+        this.logger.warn(`Failed to parse artifact JSON: ${e}`);
+        return false;
       }
 
       // Validate Schema Ref
       if (expectedSchemaRef) {
-          if (!this.validateSchemaRef(expectedSchemaRef, validatorKey)) {
-              this.logger.warn(`Invalid schema ref or mismatch: ${expectedSchemaRef}`);
-              return false;
-          }
-          this.logger.log(`Ingesting artifact with declared schema ref: ${expectedSchemaRef}`);
+        if (!this.validateSchemaRef(expectedSchemaRef, validatorKey)) {
+          this.logger.warn(`Invalid schema ref or mismatch: ${expectedSchemaRef}`);
+          return false;
+        }
+        this.logger.log(`Ingesting artifact with declared schema ref: ${expectedSchemaRef}`);
       }
 
       // Validate Content against Contract
       const validate = this.validators.get(validatorKey);
       if (!validate) {
-           this.logger.error(`No validator found for ${validatorKey}`);
-           return false;
+        this.logger.error(`No validator found for ${validatorKey}`);
+        return false;
       }
 
       if (!validate(data)) {
@@ -436,21 +452,21 @@ export class Heimgeist {
       // Best Effort Atomic Save:
       // We unlink target if exists to handle Windows behavior where rename fails on existing files.
       // This leaves a small window where the file doesn't exist, but ensures we don't get EPERM/EEXIST errors.
-        try {
-          fs.renameSync(tempPath, filePath);
+      try {
+        fs.renameSync(tempPath, filePath);
       } catch (e) {
-          // Windows: Rename may fail if target exists
-          try {
-              if (fs.existsSync(filePath)) {
-                  fs.unlinkSync(filePath);
-                  fs.renameSync(tempPath, filePath);
-              } else {
-                  throw e; // Rethrow if file didn't exist but rename failed
-              }
-          } catch (retryError) {
-              this.logger.error(`Artifact save failed (rename retry): ${retryError}`);
-              return false;
+        // Windows: Rename may fail if target exists
+        try {
+          if (fs.existsSync(filePath)) {
+            fs.unlinkSync(filePath);
+            fs.renameSync(tempPath, filePath);
+          } else {
+            throw e; // Rethrow if file didn't exist but rename failed
           }
+        } catch (retryError) {
+          this.logger.error(`Artifact save failed (rename retry): ${retryError}`);
+          return false;
+        }
       }
 
       this.logger.log(`Artifact saved: ${filename}`);
@@ -487,20 +503,23 @@ export class Heimgeist {
 
         // Security Critical: If artifact validation failed, we MUST NOT process it further.
         if (!saved) {
-            this.logger.warn(`Observatory update rejected: Artifact validation failed for ${url}`);
-            return insights;
+          this.logger.warn(`Observatory update rejected: Artifact validation failed for ${url}`);
+          return insights;
         }
 
         try {
           // Safe Path: Read from VALIDATED local artifact (double-fetch eliminated)
-          const artifactPath = path.join(this.config.artifactsDir || ARTIFACTS_DIR, 'knowledge.observatory.json');
+          const artifactPath = path.join(
+            this.config.artifactsDir || ARTIFACTS_DIR,
+            'knowledge.observatory.json'
+          );
 
           let rawText: string;
           try {
-              rawText = fs.readFileSync(artifactPath, 'utf-8');
+            rawText = fs.readFileSync(artifactPath, 'utf-8');
           } catch (e) {
-              this.logger.error(`Failed to read validated artifact from disk: ${e}`);
-              return insights;
+            this.logger.error(`Failed to read validated artifact from disk: ${e}`);
+            return insights;
           }
 
           const hash = crypto.createHash('sha256').update(rawText).digest('hex');
@@ -541,7 +560,6 @@ export class Heimgeist {
               insight_kind: 'heimgeist.insight.v1',
             },
           });
-
         } catch (error) {
           this.logger.error(`Error processing observatory published event: ${error}`);
         }
@@ -585,7 +603,8 @@ export class Heimgeist {
 
     // Check for CI failures
     if (event.type === EventType.CIResult && event.payload?.status === 'failed') {
-      const isMainBranch = event.payload.branch === 'main' || event.payload.ref === 'refs/heads/main';
+      const isMainBranch =
+        event.payload.branch === 'main' || event.payload.ref === 'refs/heads/main';
       const severity = isMainBranch ? RiskSeverity.Critical : RiskSeverity.Medium;
       const title = isMainBranch ? 'Critical CI Failure on Main' : 'CI Build Failed';
       const description = isMainBranch
@@ -618,9 +637,9 @@ export class Heimgeist {
         description,
         source: event,
         recommendations,
-        context: { 
+        context: {
           isMainBranch,
-          code: isMainBranch ? INSIGHT_CODE.CI_FAILURE_MAIN : INSIGHT_CODE.CI_FAILURE_GENERIC
+          code: isMainBranch ? INSIGHT_CODE.CI_FAILURE_MAIN : INSIGHT_CODE.CI_FAILURE_GENERIC,
         },
       });
     }
@@ -642,8 +661,8 @@ export class Heimgeist {
           'Notify the team',
         ],
         context: {
-            code: INSIGHT_CODE.DEPLOY_FAILED
-        }
+          code: INSIGHT_CODE.DEPLOY_FAILED,
+        },
       });
     }
 
@@ -846,32 +865,36 @@ export class Heimgeist {
     // Safety Gate: Check Self-Model before planning high-risk actions
     const safetyCheck = this.selfModel.checkSafetyGate();
     if (!safetyCheck.safe) {
-        // Log warning and maybe return null or a restricted action
-        this.logger.warn(`Safety Gate: Preventing action planning due to self-state: ${safetyCheck.reason}`);
+      // Log warning and maybe return null or a restricted action
+      this.logger.warn(
+        `Safety Gate: Preventing action planning due to self-state: ${safetyCheck.reason}`
+      );
 
-        // For Critical risks, we fallback to a degraded "Notify Only" mode.
-        // We do NOT propose self-modifying actions (wgx-guard, etc.) when the system is unstable.
-        if (insight.severity === RiskSeverity.Critical) {
-            return {
-                id: uuidv4(),
-                timestamp: new Date(),
-                trigger: insight,
-                steps: [
-                    {
-                        order: 1,
-                        tool: 'heimgeist-notify',
-                        parameters: { message: `CRITICAL ISSUE detected but Heimgeist is fatigued/stressed. Manual intervention required. Reason: ${safetyCheck.reason}` },
-                        description: 'Emergency Notification (Degraded Mode due to Self-State)',
-                        status: 'pending'
-                    }
-                ],
-                requiresConfirmation: true, // Force human in the loop
-                status: 'pending'
-            };
-        }
+      // For Critical risks, we fallback to a degraded "Notify Only" mode.
+      // We do NOT propose self-modifying actions (wgx-guard, etc.) when the system is unstable.
+      if (insight.severity === RiskSeverity.Critical) {
+        return {
+          id: uuidv4(),
+          timestamp: new Date(),
+          trigger: insight,
+          steps: [
+            {
+              order: 1,
+              tool: 'heimgeist-notify',
+              parameters: {
+                message: `CRITICAL ISSUE detected but Heimgeist is fatigued/stressed. Manual intervention required. Reason: ${safetyCheck.reason}`,
+              },
+              description: 'Emergency Notification (Degraded Mode due to Self-State)',
+              status: 'pending',
+            },
+          ],
+          requiresConfirmation: true, // Force human in the loop
+          status: 'pending',
+        };
+      }
 
-        // Non-critical risks are ignored when safety gate is closed
-        return null;
+      // Non-critical risks are ignored when safety gate is closed
+      return null;
     }
 
     // Plan actions based on insight type
@@ -955,7 +978,10 @@ export class Heimgeist {
             {
               order: 1,
               tool: 'sichter-quick',
-              parameters: { target: insight.source?.source || 'unknown', context: 'deploy-failure' },
+              parameters: {
+                target: insight.source?.source || 'unknown',
+                context: 'deploy-failure',
+              },
               description: 'Analyze deployment failure logs',
               status: 'pending',
             },
@@ -965,7 +991,7 @@ export class Heimgeist {
               parameters: { channel: 'ops', message: 'Deployment failed, investigation started' },
               description: 'Notify operations team',
               status: 'pending',
-            }
+            },
           ],
           requiresConfirmation: true, // High severity actions must always be confirmed
           status: 'pending',
@@ -974,27 +1000,27 @@ export class Heimgeist {
 
       // Default High severity action
       return {
-          id: uuidv4(),
-          timestamp: new Date(),
-          trigger: insight,
-          steps: [
-            {
-              order: 1,
-              tool: 'sichter-quick',
-              parameters: { target: insight.source?.source || 'unknown' },
-              description: 'Analyze issue context',
-              status: 'pending',
-            },
-            {
-              order: 2,
-              tool: 'report-generate',
-              parameters: { format: 'markdown', include: ['insights'] },
-              description: 'Generate issue report',
-              status: 'pending',
-            }
-          ],
-          requiresConfirmation: true, // High severity actions must always be confirmed
-          status: 'pending',
+        id: uuidv4(),
+        timestamp: new Date(),
+        trigger: insight,
+        steps: [
+          {
+            order: 1,
+            tool: 'sichter-quick',
+            parameters: { target: insight.source?.source || 'unknown' },
+            description: 'Analyze issue context',
+            status: 'pending',
+          },
+          {
+            order: 2,
+            tool: 'report-generate',
+            parameters: { format: 'markdown', include: ['insights'] },
+            description: 'Generate issue report',
+            status: 'pending',
+          },
+        ],
+        requiresConfirmation: true, // High severity actions must always be confirmed
+        status: 'pending',
       };
     }
 
@@ -1006,22 +1032,22 @@ export class Heimgeist {
         // PRIORITY ROUTING: Self Model Commands
         // We must check for 'self' tool first, otherwise the generic handler might capture it
         if (command.tool === 'self') {
-            return {
-                id: uuidv4(),
-                timestamp: new Date(),
-                trigger: insight,
-                steps: [
-                    {
-                        order: 1,
-                        tool: 'heimgeist-self-update',
-                        parameters: { command: command.command, args: command.args },
-                        description: `Update Self Model: ${command.command}`,
-                        status: 'pending'
-                    }
-                ],
-                requiresConfirmation: false,
-                status: 'approved'
-            };
+          return {
+            id: uuidv4(),
+            timestamp: new Date(),
+            trigger: insight,
+            steps: [
+              {
+                order: 1,
+                tool: 'heimgeist-self-update',
+                parameters: { command: command.command, args: command.args },
+                description: `Update Self Model: ${command.command}`,
+                status: 'pending',
+              },
+            ],
+            requiresConfirmation: false,
+            status: 'approved',
+          };
         }
 
         // If command is for heimgeist /analyse, we map it
@@ -1091,41 +1117,41 @@ export class Heimgeist {
 
     // File persistence
     if (this.config.persistenceEnabled !== false) {
-        // Ensure state directories exist
-        try {
+      // Ensure state directories exist
+      try {
         if (!fs.existsSync(STATE_DIR)) fs.mkdirSync(STATE_DIR, { recursive: true });
         if (!fs.existsSync(INSIGHTS_DIR)) fs.mkdirSync(INSIGHTS_DIR, { recursive: true });
         if (!fs.existsSync(ACTIONS_DIR)) fs.mkdirSync(ACTIONS_DIR, { recursive: true });
-        } catch (e) {
+      } catch (e) {
         this.logger.error(`Failed to create state directories: ${e}`);
-        }
+      }
 
-        // Persist new insights (now as Full Events)
-        for (const insight of insights) {
+      // Persist new insights (now as Full Events)
+      for (const insight of insights) {
         try {
-            const event = this.wrapInsightV1(insight, HeimgeistRole.Archivist, insight.timestamp);
-            fs.writeFileSync(
+          const event = this.wrapInsightV1(insight, HeimgeistRole.Archivist, insight.timestamp);
+          fs.writeFileSync(
             path.join(INSIGHTS_DIR, `${insight.id}.json`),
             JSON.stringify(event, null, 2)
-            );
+          );
         } catch (e) {
-            this.logger.error(`Failed to persist insight ${insight.id}: ${e}`);
+          this.logger.error(`Failed to persist insight ${insight.id}: ${e}`);
         }
-        }
+      }
 
-        // Persist new planned actions
-        for (const action of this.plannedActions.values()) {
-            if (insights.some(i => i.id === action.trigger.id)) {
-                try {
-                    fs.writeFileSync(
-                    path.join(ACTIONS_DIR, `${action.id}.json`),
-                    JSON.stringify(action, null, 2)
-                    );
-                } catch (e) {
-                    this.logger.error(`Failed to persist action ${action.id}: ${e}`);
-                }
-            }
+      // Persist new planned actions
+      for (const action of this.plannedActions.values()) {
+        if (insights.some((i) => i.id === action.trigger.id)) {
+          try {
+            fs.writeFileSync(
+              path.join(ACTIONS_DIR, `${action.id}.json`),
+              JSON.stringify(action, null, 2)
+            );
+          } catch (e) {
+            this.logger.error(`Failed to persist action ${action.id}: ${e}`);
+          }
         }
+      }
     }
 
     for (const output of this.config.outputs) {
@@ -1156,13 +1182,17 @@ export class Heimgeist {
 
               const chunkResults = await Promise.allSettled(
                 chunk.map((insight) => {
-                  const event = this.wrapInsightV1(insight, HeimgeistRole.Archivist, insight.timestamp);
+                  const event = this.wrapInsightV1(
+                    insight,
+                    HeimgeistRole.Archivist,
+                    insight.timestamp
+                  );
                   return this.chronik!.append(event);
                 })
               );
 
               // Update stats
-              chunkResults.forEach(r => {
+              chunkResults.forEach((r) => {
                 if (r.status === 'fulfilled') {
                   result.success++;
                 } else {
@@ -1553,13 +1583,15 @@ export class Heimgeist {
           const cmd = step.parameters.command as string;
           const args = (step.parameters.args as string[]) || [];
 
-          if (cmd === 'reset') this.selfModel.reset();
+          if (cmd === 'reset') await this.selfModel.reset();
           if (cmd === 'set' && args) {
             const autonomyArg = args.find((a) => a.startsWith('autonomy='));
             if (autonomyArg) {
               const val = autonomyArg.split('=')[1].trim().toLowerCase();
               if (['dormant', 'aware', 'reflective', 'critical'].includes(val)) {
-                this.selfModel.setAutonomy(val as 'dormant' | 'aware' | 'reflective' | 'critical');
+                await this.selfModel.setAutonomy(
+                  val as 'dormant' | 'aware' | 'reflective' | 'critical'
+                );
               } else {
                 this.logger.warn(`Invalid autonomy level requested: ${val}`);
               }
@@ -1576,13 +1608,13 @@ export class Heimgeist {
           (action.status === 'pending' && !action.requiresConfirmation);
 
         if (canExecute) {
-            const step = action.steps.find((s) => s.tool === 'heimgeist-notify');
-            if (step) {
+          const step = action.steps.find((s) => s.tool === 'heimgeist-notify');
+          if (step) {
             this.logger.warn(`[HEIMGEIST-NOTIFY]: ${step.parameters.message}`);
-            }
-            executed = true;
+          }
+          executed = true;
         } else {
-            return false;
+          return false;
         }
       } else {
         // Standard check
@@ -1602,7 +1634,7 @@ export class Heimgeist {
         await this.saveAction(action);
 
         // Reflect success
-        this.selfModel.reflect(true);
+        await this.selfModel.reflect(true);
         this.writeSelfStateBundle();
         void this.publishSelfStateSnapshot();
 
@@ -1612,7 +1644,7 @@ export class Heimgeist {
       return false;
     } catch (error) {
       this.logger.error(`Failed to execute action ${actionId}: ${error}`);
-      this.selfModel.reflect(false); // Reflect failure
+      await this.selfModel.reflect(false); // Reflect failure
       this.writeSelfStateBundle();
       void this.publishSelfStateSnapshot();
       return false;
@@ -1712,7 +1744,11 @@ export class Heimgeist {
   /**
    * Contract-first Wrapper for Heimgeist Insight Events
    */
-  private wrapInsightV1(insight: Insight, role: HeimgeistRole, occurredAt: Date): HeimgeistInsightEvent {
+  private wrapInsightV1(
+    insight: Insight,
+    role: HeimgeistRole,
+    occurredAt: Date
+  ): HeimgeistInsightEvent {
     // 1. Sanitize & Truncate
     // First, sanitize the insight content to ensure we don't hash secrets or persist oversize data
     let sanitizedInsight = this.sanitizePayload(insight);
@@ -1726,10 +1762,10 @@ export class Heimgeist {
     // Deterministic ID from insight.id if available, else hash fallback
     let eventId: string;
     if (insight.id) {
-        eventId = `evt-${insight.id}`;
+      eventId = `evt-${insight.id}`;
     } else {
-        this.logger.warn('Archivist: insight.id missing, falling back to hash-based ID');
-        eventId = `evt-${idempotencyKey.slice(0, 32)}`;
+      this.logger.warn('Archivist: insight.id missing, falling back to hash-based ID');
+      eventId = `evt-${idempotencyKey.slice(0, 32)}`;
     }
 
     // 4. Construct Payload
@@ -1862,36 +1898,38 @@ export class Heimgeist {
    * Normalize SHA string to strict hex format (64 chars)
    */
   private normalizeSha(sha: string): string | null {
-      // Allow sha256: prefix or no prefix
-      const lower = sha.toLowerCase().trim();
-      const hex = lower.startsWith('sha256:') ? lower.slice(7) : lower;
+    // Allow sha256: prefix or no prefix
+    const lower = sha.toLowerCase().trim();
+    const hex = lower.startsWith('sha256:') ? lower.slice(7) : lower;
 
-      // Check strict hex 64
-      if (/^[a-f0-9]{64}$/.test(hex)) {
-          return hex;
-      }
-      return null;
+    // Check strict hex 64
+    if (/^[a-f0-9]{64}$/.test(hex)) {
+      return hex;
+    }
+    return null;
   }
 
   /**
    * Validate schema reference URL host and strict match against validator contract
    */
   private validateSchemaRef(schemaRef: string, validatorKey: string): boolean {
-      try {
-          // Check for valid URL format
-          new URL(schemaRef);
+    try {
+      // Check for valid URL format
+      new URL(schemaRef);
 
-          // Strict check: if the event claims a schema ref, it MUST match the ID of the contract we are using to validate.
-          const contractId = this.contractIds.get(validatorKey);
-          if (contractId && contractId !== schemaRef) {
-              this.logger.warn(`Schema Ref Mismatch: Event claims ${schemaRef}, but Validator uses ${contractId}`);
-              return false;
-          }
-
-          return true;
-      } catch (e) {
-          return false;
+      // Strict check: if the event claims a schema ref, it MUST match the ID of the contract we are using to validate.
+      const contractId = this.contractIds.get(validatorKey);
+      if (contractId && contractId !== schemaRef) {
+        this.logger.warn(
+          `Schema Ref Mismatch: Event claims ${schemaRef}, but Validator uses ${contractId}`
+        );
+        return false;
       }
+
+      return true;
+    } catch (e) {
+      return false;
+    }
   }
 
   /**
@@ -1906,7 +1944,7 @@ export class Heimgeist {
       throw new Error(`Event version mismatch: expected 1, got ${event.version}`);
     }
     if (!event.id) {
-        throw new Error('Event id is missing');
+      throw new Error('Event id is missing');
     }
     if (!event.data) {
       throw new Error('Event data is missing');
@@ -1916,7 +1954,9 @@ export class Heimgeist {
     }
     // Strict contract check
     if (event.meta.producer !== 'heimgeist') {
-         throw new Error(`Event meta.producer mismatch: expected "heimgeist", got ${event.meta.producer}`);
+      throw new Error(
+        `Event meta.producer mismatch: expected "heimgeist", got ${event.meta.producer}`
+      );
     }
     // Check Date format (basic ISO check)
     if (isNaN(Date.parse(event.meta.occurred_at))) {
@@ -1928,6 +1968,10 @@ export class Heimgeist {
 /**
  * Create a new Heimgeist instance with default configuration
  */
-export function createHeimgeist(config?: HeimgeistConfig, logger?: Logger, chronik?: ChronikClient): Heimgeist {
+export function createHeimgeist(
+  config?: HeimgeistConfig,
+  logger?: Logger,
+  chronik?: ChronikClient
+): Heimgeist {
   return new Heimgeist(config, logger, chronik);
 }
