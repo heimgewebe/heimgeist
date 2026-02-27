@@ -19,7 +19,7 @@ jest.mock('fs', () => ({
 }));
 
 const mockedFs = fs as jest.Mocked<typeof fs>;
-// Use type assertion to properly type the promises mock without `unknown` cast
+// Use type assertion to properly type the promises mock
 const mockedFsPromises = fs.promises as jest.Mocked<typeof fs.promises>;
 
 describe('SelfStateStore', () => {
@@ -83,6 +83,7 @@ describe('SelfStateStore', () => {
         'snapshot-2023-01-02T12-00-00.000Z.json',
       ];
       // Mock async readdir for cleanup
+      // Using 'as any' here sparingly because TypeScript might complain about Dir vs string[] mismatch in mock return types depending on env
       mockedFsPromises.readdir.mockResolvedValue(mockFiles as any);
 
       await store.cleanup(2);
