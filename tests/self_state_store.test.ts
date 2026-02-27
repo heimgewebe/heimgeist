@@ -19,7 +19,7 @@ jest.mock('fs', () => ({
 }));
 
 const mockedFs = fs as jest.Mocked<typeof fs>;
-// Need to cast promises to jest.Mocked manually or use ts-jest utils, but casting works for now
+// Type assertion for cleaner usage
 const mockedFsPromises = fs.promises as unknown as {
   writeFile: jest.Mock;
   unlink: jest.Mock;
@@ -40,7 +40,9 @@ describe('SelfStateStore', () => {
   beforeEach(() => {
     jest.resetAllMocks();
     mockedFs.existsSync.mockReturnValue(true);
+    // Sync readdir/readFile are used in constructor/loadLatest (sync init)
     mockedFs.readdirSync.mockReturnValue([] as any);
+    // Async readdir is used in cleanup (async)
     mockedFsPromises.readdir.mockResolvedValue([]);
     store = new SelfStateStore();
   });
@@ -84,7 +86,7 @@ describe('SelfStateStore', () => {
         'snapshot-2023-01-01T12-00-00.000Z.json',
         'snapshot-2023-01-02T12-00-00.000Z.json',
       ];
-      // Mock both sync and async readdir, though cleanup uses async now
+      // Mock async readdir for cleanup
       mockedFsPromises.readdir.mockResolvedValue(mockFiles);
 
       await store.cleanup(2);
