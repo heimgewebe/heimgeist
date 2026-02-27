@@ -19,12 +19,8 @@ jest.mock('fs', () => ({
 }));
 
 const mockedFs = fs as jest.Mocked<typeof fs>;
-// Type assertion for cleaner usage
-const mockedFsPromises = fs.promises as unknown as {
-  writeFile: jest.Mock;
-  unlink: jest.Mock;
-  readdir: jest.Mock;
-};
+// Use type assertion to properly type the promises mock without `unknown` cast
+const mockedFsPromises = fs.promises as jest.Mocked<typeof fs.promises>;
 
 describe('SelfStateStore', () => {
   let store: SelfStateStore;
@@ -87,7 +83,7 @@ describe('SelfStateStore', () => {
         'snapshot-2023-01-02T12-00-00.000Z.json',
       ];
       // Mock async readdir for cleanup
-      mockedFsPromises.readdir.mockResolvedValue(mockFiles);
+      mockedFsPromises.readdir.mockResolvedValue(mockFiles as any);
 
       await store.cleanup(2);
 
@@ -105,7 +101,7 @@ describe('SelfStateStore', () => {
       const mockFiles = [
         'snapshot-2023-01-01T12-00-00.000Z.json',
       ];
-      mockedFsPromises.readdir.mockResolvedValue(mockFiles);
+      mockedFsPromises.readdir.mockResolvedValue(mockFiles as any);
 
       await store.cleanup(50);
       expect(mockedFsPromises.unlink).not.toHaveBeenCalled();
