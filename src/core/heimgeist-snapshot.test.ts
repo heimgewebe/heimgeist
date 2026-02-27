@@ -5,7 +5,18 @@ import { createHeimgeist } from './heimgeist';
 import * as fs from 'fs';
 
 // Mock dependencies
-jest.mock('fs');
+jest.mock('fs', () => ({
+  existsSync: jest.fn(),
+  mkdirSync: jest.fn(),
+  writeFileSync: jest.fn(),
+  readdirSync: jest.fn(),
+  readFileSync: jest.fn(),
+  promises: {
+    writeFile: jest.fn().mockResolvedValue(undefined),
+    unlink: jest.fn().mockResolvedValue(undefined),
+    readdir: jest.fn().mockResolvedValue([]),
+  }
+}));
 jest.mock('./logger');
 
 describe('Heimgeist Snapshot Events', () => {
@@ -18,6 +29,9 @@ describe('Heimgeist Snapshot Events', () => {
     (fs.mkdirSync as jest.Mock).mockImplementation(() => {});
     (fs.writeFileSync as jest.Mock).mockImplementation(() => {});
     (fs.readdirSync as jest.Mock).mockReturnValue([]);
+    (fs.promises.writeFile as jest.Mock).mockResolvedValue(undefined);
+    (fs.promises.unlink as jest.Mock).mockResolvedValue(undefined);
+    (fs.promises.readdir as jest.Mock).mockResolvedValue([]);
 
     mockChronik = {
       nextEvent: jest.fn().mockResolvedValue(null),
@@ -36,7 +50,7 @@ describe('Heimgeist Snapshot Events', () => {
 
   it('should publish a snapshot event when updating self model', async () => {
     const signals: SystemSignals = { cpu_load: 90 };
-    heimgeist.updateSelfModel(signals);
+    await heimgeist.updateSelfModel(signals);
 
     // Wait for async operations (publishSelfStateSnapshot is void promise)
     await new Promise(process.nextTick);

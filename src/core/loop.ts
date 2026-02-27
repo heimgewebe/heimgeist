@@ -74,7 +74,7 @@ export class HeimgeistCoreLoop {
       memory_pressure: heapUsedPct,
       // We could calculate failure rate from heimgeist stats if exposed
     };
-    this.heimgeist.updateSelfModel(mockSignals);
+    await this.heimgeist.updateSelfModel(mockSignals);
 
     // 1. Pull
     const event = await this.chronik.nextEvent([

@@ -5,7 +5,18 @@ import { defaultLogger } from './logger';
 import * as fs from 'fs';
 
 // Mock fs to avoid writing to disk during tests
-jest.mock('fs');
+jest.mock('fs', () => ({
+  existsSync: jest.fn(),
+  mkdirSync: jest.fn(),
+  writeFileSync: jest.fn(),
+  readdirSync: jest.fn(),
+  readFileSync: jest.fn(),
+  promises: {
+    writeFile: jest.fn().mockResolvedValue(undefined),
+    unlink: jest.fn().mockResolvedValue(undefined),
+    readdir: jest.fn().mockResolvedValue([]),
+  }
+}));
 jest.mock('timers/promises', () => ({
   setTimeout: jest.fn().mockResolvedValue(undefined),
 }));
@@ -75,7 +86,7 @@ describe('Heimgeist Critical Flows', () => {
           open_actions_count: 50
       };
 
-      heimgeist.updateSelfModel(badSignals);
+      await heimgeist.updateSelfModel(badSignals);
 
       const event = {
         id: uuidv4(),
