@@ -1,7 +1,7 @@
 import { RealChronikClient } from '../src/core/chronik-client';
 import * as fs from 'fs';
 
-jest.mock('fs');
+jest.mock('fs', () => require('./helpers/mockFs').createMockFs(jest));
 const mockedFs = fs as jest.Mocked<typeof fs>;
 
 describe('RealChronikClient Cursor Handling', () => {

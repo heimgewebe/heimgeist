@@ -4,19 +4,7 @@ import * as fs from 'fs';
 import { SELF_MODEL_DIR } from '../src/config/state-paths';
 
 // Mock both synchronous and async fs methods
-jest.mock('fs', () => ({
-  existsSync: jest.fn(),
-  mkdirSync: jest.fn(),
-  writeFileSync: jest.fn(),
-  readdirSync: jest.fn(),
-  readFileSync: jest.fn(),
-  unlinkSync: jest.fn(),
-  promises: {
-    writeFile: jest.fn().mockResolvedValue(undefined),
-    unlink: jest.fn().mockResolvedValue(undefined),
-    readdir: jest.fn().mockResolvedValue([]),
-  }
-}));
+jest.mock('fs', () => require('./helpers/mockFs').createMockFs(jest));
 
 const mockedFs = fs as jest.Mocked<typeof fs>;
 // Use type assertion to properly type the promises mock

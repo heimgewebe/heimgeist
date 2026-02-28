@@ -5,7 +5,7 @@ import * as path from 'path';
 import { ACTIONS_DIR, INSIGHTS_DIR } from '../src/config/state-paths';
 
 // Mock fs and config
-jest.mock('fs');
+jest.mock('fs', () => require('./helpers/mockFs').createMockFs(jest));
 jest.mock('../src/config/state-paths', () => ({
   ACTIONS_DIR: '/mock/actions',
   INSIGHTS_DIR: '/mock/insights',
