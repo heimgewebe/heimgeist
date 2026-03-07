@@ -107,10 +107,14 @@ export class HeimgeistCoreLoop {
         a => a.status === 'approved' || (a.status === 'pending' && !a.requiresConfirmation)
     );
 
-    // Execute actions concurrently to improve performance.
-    // Each action is self-contained and handles its own results and logging.
-    await Promise.all(
-      actionsToExecute.map(async (action) => {
+    // Actions execute sequentially by design (refer to docs/heimgeist-core-loop.md #5).
+    //
+    // Reason: executeAction() currently mutates shared state (SelfModel) and triggers
+    // persistence / snapshot side effects. Without explicit coordination, parallel execution
+    // would risk race conditions, snapshot collisions, and non-deterministic reflection order.
+    //
+    // Re-evaluate only after introducing concurrency-safe state isolation or locking.
+    for (const action of actionsToExecute) {
         this.logger.log(`[Auto-Exec] Executing action: ${action.id} (${action.trigger.title})`);
 
         // In a real system, we would execute the tool steps here.
@@ -118,9 +122,8 @@ export class HeimgeistCoreLoop {
         const success = await this.heimgeist.executeAction(action.id);
 
         if (!success) {
-          this.logger.warn(`Failed to execute action ${action.id}`);
+            this.logger.warn(`Failed to execute action ${action.id}`);
         }
-      })
-    );
+    }
   }
 }
