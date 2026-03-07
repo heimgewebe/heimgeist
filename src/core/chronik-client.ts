@@ -1,6 +1,6 @@
 import * as fs from 'fs';
 import * as path from 'path';
-import { ChronikClient, ChronikEvent, HeimgeistInsightEvent, HeimgeistSelfStateSnapshotEvent } from '../types';
+import { ChronikClient, ChronikEvent, EventType, HeimgeistInsightEvent, HeimgeistSelfStateSnapshotEvent } from '../types';
 import { STATE_DIR } from '../config/state-paths';
 
 /**
@@ -83,7 +83,7 @@ export class RealChronikClient implements ChronikClient {
       }
   }
 
-  async nextEvent(types: string[]): Promise<ChronikEvent | null> {
+  async nextEvent(types: (EventType | string)[]): Promise<ChronikEvent | null> {
     // Loop limited to prevent infinite blocking, but high enough to skip sparse streams.
     // CHRONIK_MAX_SKIP defaults to 50.
     const parsedSkips = parseInt(process.env.CHRONIK_MAX_SKIP || '50', 10);
@@ -158,7 +158,7 @@ export class RealChronikClient implements ChronikClient {
             if (body.events && body.events.length > 0) {
                 const event = body.events[0];
                 // Filter by types locally
-                if (types.includes(event.type as any)) {
+                if (types.includes(event.type)) {
                     // Match found! Commit cursor and return event
                     this.setCursor(nextCursor);
                     return event;

@@ -21,11 +21,11 @@ export class MockChronikClient implements ChronikClient {
     this.events.push(event);
   }
 
-  async nextEvent(types: string[]): Promise<ChronikEvent | null> {
+  async nextEvent(types: (EventType | string)[]): Promise<ChronikEvent | null> {
     // Simple FIFO for the mock
     if (this.events.length > 0) {
       const event = this.events.shift();
-      if (event && types.includes(event.type as EventType)) {
+      if (event && types.includes(event.type)) {
         return event;
       }
       // If event type doesn't match, maybe put it back or discard?
