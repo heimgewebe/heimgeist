@@ -107,7 +107,8 @@ export class HeimgeistCoreLoop {
         a => a.status === 'approved' || (a.status === 'pending' && !a.requiresConfirmation)
     );
 
-    // Actions execute sequentially by design (refer to docs/heimgeist-core-loop.md #5).
+    // Actions execute sequentially by design.
+    // See docs/heimgeist-core-loop.md ("Concurrency & Execution Model") for the rationale.
     //
     // Reason: executeAction() currently mutates shared state (SelfModel) and triggers
     // persistence / snapshot side effects. Without explicit coordination, parallel execution
