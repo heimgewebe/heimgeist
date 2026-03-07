@@ -131,7 +131,32 @@ while (true) {
 
 ---
 
-## 5. Risiko-Assessment (v1 – heuristisch)
+## 5. Concurrency & Execution Model
+
+Heimgeist operates in a complex environment where multiple actions might be triggered by a single event or a sequence of events.
+
+### 5.1 Serial Execution (Default)
+The Heimgeist core loop executes actions **sequentially by default**.
+
+**Rationale:**
+1. **Shared State**: The `executeAction()` path mutates shared internal state (e.g., `SelfModel`).
+2. **Persistence Integrity**: Snapshot generation and filesystem persistence (JSON files in `STATE_DIR`) rely on deterministic order to avoid write collisions or non-deterministic file timestamps.
+3. **Observation Quality**: Serial execution ensures that the system's self-reflection (`selfModel.reflect`) accurately captures the impact of each action in the order they occurred.
+
+### 5.2 Architecture Rule for Future Optimizations
+Parallelization (e.g., via `Promise.all`) is not forbidden but **must be justified and proven safe**.
+
+Before implementing concurrency in core paths, the following conditions must be met:
+1. **State Isolation**: Concurrent units must not mutate shared in-memory state without protection.
+2. **Persistence Safety**: File, snapshot, or database writes must be coordinated/atomic to prevent collisions.
+3. **Order Irrelevance**: The logical outcome must be independent of execution order.
+4. **Explicit Coordination**: A controlled concurrency strategy (e.g., locking, bounded concurrency, idempotency) must be in place.
+
+Parallelization must never be justified by performance/benchmark gains alone. **Performance is not a proof of correctness.**
+
+---
+
+## 6. Risiko-Assessment (v1 – heuristisch)
 
 Ziel: Einfache, aber sinnvolle Heuristik, die später durch heimlern ersetzt/erweitert werden kann.
 
@@ -150,7 +175,7 @@ Jeder Risk-Score muss ein `why` enthalten, z. B.:
 
 ---
 
-## 6. Autonomie-Level-Mapping
+## 7. Autonomie-Level-Mapping
 
 Aus dem Heimgeist-Kontext:
 - **Level 0 – passiv:** nur auf Anfrage.
@@ -158,7 +183,7 @@ Aus dem Heimgeist-Kontext:
 - **Level 2 – warnend:** generiert Insights + schlägt Aktionen vor, darf nicht-destruktive Aktionen ausführen (z. B. `sichter.quick_analysis`).
 - **Level 3 – operativ:** darf bestimmte Aktionen eigenständig ausführen, z. B. `wgx.guard`.
 
-### 6.1 Konkrete Zuordnung
+### 7.1 Konkrete Zuordnung
 
 - **Level 1**
   - Aktionen nur als `status: "pending"`.
@@ -178,9 +203,9 @@ Aus dem Heimgeist-Kontext:
 
 ---
 
-## 7. Erster vertikaler Slice (konkret implementieren)
+## 8. Erster vertikaler Slice (konkret implementieren)
 
-### 7.1 Scope
+### 8.1 Scope
 
 Nur einen einzigen Flow wirklich implementieren:
 
@@ -207,7 +232,7 @@ Schritte:
 
 ---
 
-## 8. Nächste Ausbaustufen
+## 9. Nächste Ausbaustufen
 
 1. **PR-Kontext dazunehmen**
    - `ci.result` mit `linked_pr` → Heimgeist kann Sichter-Aktionen vorschlagen:
@@ -220,7 +245,7 @@ Schritte:
 
 ---
 
-## 9. Betriebsoberfläche (v1 CLI)
+## 10. Betriebsoberfläche (v1 CLI)
 
 Minimal-CLI-Kommandos für Heimgeist:
 
