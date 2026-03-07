@@ -107,7 +107,10 @@ export class HeimgeistCoreLoop {
         a => a.status === 'approved' || (a.status === 'pending' && !a.requiresConfirmation)
     );
 
-    for (const action of actionsToExecute) {
+    // Execute actions concurrently to improve performance.
+    // Each action is self-contained and handles its own results and logging.
+    await Promise.all(
+      actionsToExecute.map(async (action) => {
         this.logger.log(`[Auto-Exec] Executing action: ${action.id} (${action.trigger.title})`);
 
         // In a real system, we would execute the tool steps here.
@@ -115,8 +118,9 @@ export class HeimgeistCoreLoop {
         const success = await this.heimgeist.executeAction(action.id);
 
         if (!success) {
-            this.logger.warn(`Failed to execute action ${action.id}`);
+          this.logger.warn(`Failed to execute action ${action.id}`);
         }
-    }
+      })
+    );
   }
 }
