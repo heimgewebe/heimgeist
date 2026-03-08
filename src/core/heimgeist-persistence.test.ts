@@ -70,7 +70,7 @@ describe('Heimgeist Persistence', () => {
         expect(success).toBe(true);
 
         // Await any pending promises (saveAction is now properly asynchronous but approveAction doesn't await it so we tick macro task queue)
-        await new Promise(process.nextTick);
+        await new Promise((resolve) => setTimeout(resolve, 0));
 
         // 3. Verify that saveAction (and thus fs.promises.writeFile) was called
         expect(fs.promises.writeFile).toHaveBeenCalled();
@@ -109,7 +109,8 @@ describe('Heimgeist Persistence', () => {
         const success = heimgeist.rejectAction(actionId);
         expect(success).toBe(true);
 
-        await new Promise(process.nextTick);
+        // Await any pending promises (saveAction is now properly asynchronous but rejectAction doesn't await it so we tick macro task queue)
+        await new Promise((resolve) => setTimeout(resolve, 0));
 
         // 3. Verify persistence
         expect(fs.promises.writeFile).toHaveBeenCalled();

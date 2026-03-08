@@ -78,6 +78,7 @@ export class Heimgeist {
   private validators: Map<string, ValidateFunction> = new Map();
   private contractIds: Map<string, string> = new Map();
   private gateHealthy: boolean = true;
+  private actionSaveQueue: Promise<void> = Promise.resolve();
 
   constructor(config?: HeimgeistConfig, logger: Logger = defaultLogger, chronik?: ChronikClient) {
     // console.log('Heimgeist constructor config:', config);
@@ -1091,17 +1092,19 @@ export class Heimgeist {
   public async saveAction(action: PlannedAction): Promise<void> {
     if (this.config.persistenceEnabled === false) return;
 
-    try {
-      if (!fs.existsSync(ACTIONS_DIR)) {
+    this.actionSaveQueue = this.actionSaveQueue.then(async () => {
+      try {
         await fs.promises.mkdir(ACTIONS_DIR, { recursive: true });
+        await fs.promises.writeFile(
+          path.join(ACTIONS_DIR, `${action.id}.json`),
+          JSON.stringify(action, null, 2)
+        );
+      } catch (e) {
+        this.logger.error(`Failed to persist action ${action.id}: ${e}`);
       }
-      await fs.promises.writeFile(
-        path.join(ACTIONS_DIR, `${action.id}.json`),
-        JSON.stringify(action, null, 2)
-      );
-    } catch (e) {
-      this.logger.error(`Failed to persist action ${action.id}: ${e}`);
-    }
+    });
+
+    return this.actionSaveQueue;
   }
 
   /**
