@@ -1,4 +1,4 @@
-import { ChronikEvent, EventType, ChronikClient, HeimgeistInsightEvent } from '../types';
+import { ChronikEvent, ChronikClient, HeimgeistInsightEvent } from '../types';
 
 /**
  * Mock Chronik Client for development and testing.
