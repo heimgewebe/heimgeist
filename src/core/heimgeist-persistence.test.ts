@@ -23,6 +23,8 @@ class MockLogger implements Logger {
   error = jest.fn();
 }
 
+const flushAsyncPersistence = () => new Promise((resolve) => setTimeout(resolve, 0));
+
 describe('Heimgeist Persistence', () => {
   let heimgeist: Heimgeist;
   let mockLogger: MockLogger;
@@ -69,8 +71,8 @@ describe('Heimgeist Persistence', () => {
     const success = heimgeist.approveAction(actionId);
     expect(success).toBe(true);
 
-    // Await any pending promises (saveAction is now properly asynchronous but approveAction doesn't await it so we tick macro task queue)
-    await new Promise((resolve) => setTimeout(resolve, 0));
+    // Await any pending promises (saveAction is now properly asynchronous but approveAction doesn't await it so we flush async queues)
+    await flushAsyncPersistence();
 
     // 3. Verify that saveAction (and thus fs.promises.writeFile) was called
     expect(fs.promises.writeFile).toHaveBeenCalled();
@@ -106,8 +108,8 @@ describe('Heimgeist Persistence', () => {
     const success = heimgeist.rejectAction(actionId);
     expect(success).toBe(true);
 
-    // Await any pending promises (saveAction is now properly asynchronous but rejectAction doesn't await it so we tick macro task queue)
-    await new Promise((resolve) => setTimeout(resolve, 0));
+    // Await any pending promises (saveAction is now properly asynchronous but rejectAction doesn't await it so we flush async queues)
+    await flushAsyncPersistence();
 
     // 3. Verify persistence
     expect(fs.promises.writeFile).toHaveBeenCalled();
