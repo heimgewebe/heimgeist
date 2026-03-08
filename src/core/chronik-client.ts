@@ -158,7 +158,7 @@ export class RealChronikClient implements ChronikClient {
             if (body.events && body.events.length > 0) {
                 const event = body.events[0];
                 // Filter by types locally
-                if (types.includes(event.type as any)) {
+                if (types.includes(event.type)) {
                     // Match found! Commit cursor and return event
                     this.setCursor(nextCursor);
                     return event;
