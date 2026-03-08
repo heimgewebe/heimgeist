@@ -59,7 +59,7 @@ describe('Heimgeist API Authentication', () => {
     });
 
     it('should deny access with a key of incorrect length (401)', async () => {
-      // Testing the length-check in constant-time comparison
+      // Testing the constant-time comparison with different length
       const response = await request(app)
         .get('/heimgeist/status')
         .set('X-API-Key', VALID_KEY + '-extra');
@@ -97,6 +97,39 @@ describe('Heimgeist API Authentication', () => {
     it('should allow access to public root / even with API key configured', async () => {
       const response = await request(app).get('/');
       expect(response.status).toBe(200);
+    });
+  });
+
+  describe('Environment variable API key', () => {
+    let app: express.Application;
+    const ENV_KEY = 'env-secret-key';
+    const originalEnv = process.env.HEIMGEIST_API_KEY;
+
+    beforeEach(() => {
+      process.env.HEIMGEIST_API_KEY = ENV_KEY;
+      // Re-initialize Heimgeist to pick up the new env var in loadConfig
+      const heimgeist = new Heimgeist();
+      app = createApp(heimgeist);
+    });
+
+    afterEach(() => {
+      process.env.HEIMGEIST_API_KEY = originalEnv;
+    });
+
+    it('should allow access with key from environment variable', async () => {
+      const response = await request(app)
+        .get('/heimgeist/status')
+        .set('X-API-Key', ENV_KEY);
+      expect(response.status).toBe(200);
+    });
+
+    it('should redact the environment API key in config', async () => {
+      const response = await request(app)
+        .get('/heimgeist/config')
+        .set('X-API-Key', ENV_KEY);
+
+      expect(response.status).toBe(200);
+      expect(response.body.apiKey).toBe('[REDACTED]');
     });
   });
 });

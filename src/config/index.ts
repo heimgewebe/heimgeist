@@ -52,7 +52,7 @@ const DEFAULT_CONFIG: HeimgeistConfig = {
     },
   ],
   persistenceEnabled: true,
-  apiKey: undefined,
+  apiKey: process.env.HEIMGEIST_API_KEY,
 };
 
 /**
