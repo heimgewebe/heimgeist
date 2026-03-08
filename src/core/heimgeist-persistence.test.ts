@@ -11,6 +11,10 @@ jest.mock('fs', () => ({
   mkdirSync: jest.fn(),
   readdirSync: jest.fn(() => []),
   readFileSync: jest.fn(),
+  promises: {
+    writeFile: jest.fn().mockResolvedValue(undefined),
+    mkdir: jest.fn().mockResolvedValue(undefined),
+  },
 }));
 
 class MockLogger implements Logger {
@@ -55,7 +59,7 @@ describe('Heimgeist Persistence', () => {
     await heimgeist.processEvent(event);
 
     // Clear mocks from the initial processing
-    (fs.writeFileSync as jest.Mock).mockClear();
+    (fs.promises.writeFile as jest.Mock).mockClear();
 
     const actions = heimgeist.getPlannedActions();
     if (actions.length > 0) {
@@ -65,11 +69,14 @@ describe('Heimgeist Persistence', () => {
         const success = heimgeist.approveAction(actionId);
         expect(success).toBe(true);
 
-        // 3. Verify that saveAction (and thus fs.writeFileSync) was called
-        expect(fs.writeFileSync).toHaveBeenCalled();
+        // Await any pending promises (saveAction is now properly asynchronous but approveAction doesn't await it so we tick macro task queue)
+        await new Promise(process.nextTick);
+
+        // 3. Verify that saveAction (and thus fs.promises.writeFile) was called
+        expect(fs.promises.writeFile).toHaveBeenCalled();
 
         // Verify the content being written has status 'approved'
-        const writeCalls = (fs.writeFileSync as jest.Mock).mock.calls;
+        const writeCalls = (fs.promises.writeFile as jest.Mock).mock.calls;
         const actionWrite = writeCalls.find((call: unknown[]) =>
             typeof call[0] === 'string' && call[0].includes(actionId)
         );
@@ -92,7 +99,7 @@ describe('Heimgeist Persistence', () => {
     };
 
     await heimgeist.processEvent(event);
-    (fs.writeFileSync as jest.Mock).mockClear();
+    (fs.promises.writeFile as jest.Mock).mockClear();
 
     const actions = heimgeist.getPlannedActions();
     if (actions.length > 0) {
@@ -102,10 +109,12 @@ describe('Heimgeist Persistence', () => {
         const success = heimgeist.rejectAction(actionId);
         expect(success).toBe(true);
 
-        // 3. Verify persistence
-        expect(fs.writeFileSync).toHaveBeenCalled();
+        await new Promise(process.nextTick);
 
-        const writeCalls = (fs.writeFileSync as jest.Mock).mock.calls;
+        // 3. Verify persistence
+        expect(fs.promises.writeFile).toHaveBeenCalled();
+
+        const writeCalls = (fs.promises.writeFile as jest.Mock).mock.calls;
         const actionWrite = writeCalls.find((call: unknown[]) =>
             typeof call[0] === 'string' && call[0].includes(actionId)
         );

@@ -1092,8 +1092,10 @@ export class Heimgeist {
     if (this.config.persistenceEnabled === false) return;
 
     try {
-      if (!fs.existsSync(ACTIONS_DIR)) fs.mkdirSync(ACTIONS_DIR, { recursive: true });
-      fs.writeFileSync(
+      if (!fs.existsSync(ACTIONS_DIR)) {
+        await fs.promises.mkdir(ACTIONS_DIR, { recursive: true });
+      }
+      await fs.promises.writeFile(
         path.join(ACTIONS_DIR, `${action.id}.json`),
         JSON.stringify(action, null, 2)
       );
