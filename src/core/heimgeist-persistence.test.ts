@@ -81,10 +81,8 @@ describe('Heimgeist Persistence', () => {
         typeof call[0] === 'string' && call[0].includes(actionId)
     );
     expect(actionWrite).toBeDefined();
-    if (actionWrite) {
-        const savedAction = JSON.parse(actionWrite[1] as string);
-        expect(savedAction.status).toBe('approved');
-    }
+    const savedAction = JSON.parse(actionWrite![1] as string);
+    expect(savedAction.status).toBe('approved');
   });
 
   it('should persist action when rejected', async () => {
@@ -119,10 +117,8 @@ describe('Heimgeist Persistence', () => {
         typeof call[0] === 'string' && call[0].includes(actionId)
     );
     expect(actionWrite).toBeDefined();
-    if (actionWrite) {
-        const savedAction = JSON.parse(actionWrite[1] as string);
-        expect(savedAction.status).toBe('rejected');
-    }
+    const savedAction = JSON.parse(actionWrite![1] as string);
+    expect(savedAction.status).toBe('rejected');
   });
   it('should snapshot action state at saveAction call time, ignoring later mutations', async () => {
     // 1. Create a planned action
@@ -160,10 +156,8 @@ describe('Heimgeist Persistence', () => {
         typeof call[0] === 'string' && call[0].includes(action.id)
     );
     expect(actionWrite).toBeDefined();
-    if (actionWrite) {
-        const savedAction = JSON.parse(actionWrite[1] as string);
-        expect(savedAction.status).toBe('approved');
-        expect(savedAction.status).not.toBe('executed');
-    }
+    const savedAction = JSON.parse(actionWrite![1] as string);
+    expect(savedAction.status).toBe('approved');
+    expect(savedAction.status).not.toBe('executed');
   });
 });

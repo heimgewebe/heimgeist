@@ -1088,8 +1088,8 @@ export class Heimgeist {
 
   /**
    * Public method to persist a specific action (e.g. after update).
-   * Writes are strictly serialized via actionSaveQueue to prevent state
-   * corruption if fire-and-forget callers resolve out of order.
+   * Writes are strictly serialized via actionSaveQueue to preserve
+   * durable write order for async callers.
    */
   public async saveAction(action: PlannedAction): Promise<void> {
     if (this.config.persistenceEnabled === false) return;
