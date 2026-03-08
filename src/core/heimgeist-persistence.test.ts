@@ -62,29 +62,28 @@ describe('Heimgeist Persistence', () => {
     (fs.promises.writeFile as jest.Mock).mockClear();
 
     const actions = heimgeist.getPlannedActions();
-    if (actions.length > 0) {
-        const actionId = actions[0].id;
+    expect(actions.length).toBeGreaterThan(0);
+    const actionId = actions[0].id;
 
-        // 2. Approve the action
-        const success = heimgeist.approveAction(actionId);
-        expect(success).toBe(true);
+    // 2. Approve the action
+    const success = heimgeist.approveAction(actionId);
+    expect(success).toBe(true);
 
-        // Await any pending promises (saveAction is now properly asynchronous but approveAction doesn't await it so we tick macro task queue)
-        await new Promise((resolve) => setTimeout(resolve, 0));
+    // Await any pending promises (saveAction is now properly asynchronous but approveAction doesn't await it so we tick macro task queue)
+    await new Promise((resolve) => setTimeout(resolve, 0));
 
-        // 3. Verify that saveAction (and thus fs.promises.writeFile) was called
-        expect(fs.promises.writeFile).toHaveBeenCalled();
+    // 3. Verify that saveAction (and thus fs.promises.writeFile) was called
+    expect(fs.promises.writeFile).toHaveBeenCalled();
 
-        // Verify the content being written has status 'approved'
-        const writeCalls = (fs.promises.writeFile as jest.Mock).mock.calls;
-        const actionWrite = writeCalls.find((call: unknown[]) =>
-            typeof call[0] === 'string' && call[0].includes(actionId)
-        );
-        expect(actionWrite).toBeDefined();
-        if (actionWrite) {
-            const savedAction = JSON.parse(actionWrite[1] as string);
-            expect(savedAction.status).toBe('approved');
-        }
+    // Verify the content being written has status 'approved'
+    const writeCalls = (fs.promises.writeFile as jest.Mock).mock.calls;
+    const actionWrite = writeCalls.find((call: unknown[]) =>
+        typeof call[0] === 'string' && call[0].includes(actionId)
+    );
+    expect(actionWrite).toBeDefined();
+    if (actionWrite) {
+        const savedAction = JSON.parse(actionWrite[1] as string);
+        expect(savedAction.status).toBe('approved');
     }
   });
 
@@ -102,28 +101,27 @@ describe('Heimgeist Persistence', () => {
     (fs.promises.writeFile as jest.Mock).mockClear();
 
     const actions = heimgeist.getPlannedActions();
-    if (actions.length > 0) {
-        const actionId = actions[0].id;
+    expect(actions.length).toBeGreaterThan(0);
+    const actionId = actions[0].id;
 
-        // 2. Reject the action
-        const success = heimgeist.rejectAction(actionId);
-        expect(success).toBe(true);
+    // 2. Reject the action
+    const success = heimgeist.rejectAction(actionId);
+    expect(success).toBe(true);
 
-        // Await any pending promises (saveAction is now properly asynchronous but rejectAction doesn't await it so we tick macro task queue)
-        await new Promise((resolve) => setTimeout(resolve, 0));
+    // Await any pending promises (saveAction is now properly asynchronous but rejectAction doesn't await it so we tick macro task queue)
+    await new Promise((resolve) => setTimeout(resolve, 0));
 
-        // 3. Verify persistence
-        expect(fs.promises.writeFile).toHaveBeenCalled();
+    // 3. Verify persistence
+    expect(fs.promises.writeFile).toHaveBeenCalled();
 
-        const writeCalls = (fs.promises.writeFile as jest.Mock).mock.calls;
-        const actionWrite = writeCalls.find((call: unknown[]) =>
-            typeof call[0] === 'string' && call[0].includes(actionId)
-        );
-        expect(actionWrite).toBeDefined();
-        if (actionWrite) {
-            const savedAction = JSON.parse(actionWrite[1] as string);
-            expect(savedAction.status).toBe('rejected');
-        }
+    const writeCalls = (fs.promises.writeFile as jest.Mock).mock.calls;
+    const actionWrite = writeCalls.find((call: unknown[]) =>
+        typeof call[0] === 'string' && call[0].includes(actionId)
+    );
+    expect(actionWrite).toBeDefined();
+    if (actionWrite) {
+        const savedAction = JSON.parse(actionWrite[1] as string);
+        expect(savedAction.status).toBe('rejected');
     }
   });
   it('should snapshot action state at saveAction call time, ignoring later mutations', async () => {
@@ -140,33 +138,32 @@ describe('Heimgeist Persistence', () => {
     (fs.promises.writeFile as jest.Mock).mockClear();
 
     const actions = heimgeist.getPlannedActions();
-    if (actions.length > 0) {
-        const action = actions[0];
+    expect(actions.length).toBeGreaterThan(0);
+    const action = actions[0];
 
-        action.status = 'approved';
+    action.status = 'approved';
 
-        // 2. Call saveAction, which enqueues the promise
-        const savePromise = heimgeist.saveAction(action);
+    // 2. Call saveAction, which enqueues the promise
+    const savePromise = heimgeist.saveAction(action);
 
-        // 3. Mutate the object before the promise resolves
-        action.status = 'executed';
+    // 3. Mutate the object before the promise resolves
+    action.status = 'executed';
 
-        // 4. Wait for persistence to finish
-        await savePromise;
+    // 4. Wait for persistence to finish
+    await savePromise;
 
-        expect(fs.promises.writeFile).toHaveBeenCalled();
+    expect(fs.promises.writeFile).toHaveBeenCalled();
 
-        // 5. Verify the persisted JSON matches the snapshotted state ('approved'), not the mutated state ('executed')
-        const writeCalls = (fs.promises.writeFile as jest.Mock).mock.calls;
-        const actionWrite = writeCalls.find((call: unknown[]) =>
-            typeof call[0] === 'string' && call[0].includes(action.id)
-        );
-        expect(actionWrite).toBeDefined();
-        if (actionWrite) {
-            const savedAction = JSON.parse(actionWrite[1] as string);
-            expect(savedAction.status).toBe('approved');
-            expect(savedAction.status).not.toBe('executed');
-        }
+    // 5. Verify the persisted JSON matches the snapshotted state ('approved'), not the mutated state ('executed')
+    const writeCalls = (fs.promises.writeFile as jest.Mock).mock.calls;
+    const actionWrite = writeCalls.find((call: unknown[]) =>
+        typeof call[0] === 'string' && call[0].includes(action.id)
+    );
+    expect(actionWrite).toBeDefined();
+    if (actionWrite) {
+        const savedAction = JSON.parse(actionWrite[1] as string);
+        expect(savedAction.status).toBe('approved');
+        expect(savedAction.status).not.toBe('executed');
     }
   });
 });
