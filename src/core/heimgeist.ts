@@ -1094,13 +1094,14 @@ export class Heimgeist {
   public async saveAction(action: PlannedAction): Promise<void> {
     if (this.config.persistenceEnabled === false) return;
 
+    // Snapshot state before enqueuing to prevent persisting later mutations
+    const filePath = path.join(ACTIONS_DIR, `${action.id}.json`);
+    const serialized = JSON.stringify(action, null, 2);
+
     this.actionSaveQueue = this.actionSaveQueue.then(async () => {
       try {
         await fs.promises.mkdir(ACTIONS_DIR, { recursive: true });
-        await fs.promises.writeFile(
-          path.join(ACTIONS_DIR, `${action.id}.json`),
-          JSON.stringify(action, null, 2)
-        );
+        await fs.promises.writeFile(filePath, serialized);
       } catch (e) {
         this.logger.error(`Failed to persist action ${action.id}: ${e}`);
       }
