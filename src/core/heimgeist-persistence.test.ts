@@ -126,4 +126,47 @@ describe('Heimgeist Persistence', () => {
         }
     }
   });
+  it('should snapshot action state at saveAction call time, ignoring later mutations', async () => {
+    // 1. Create a planned action
+    const event: ChronikEvent = {
+        id: 'test-event-critical-3',
+        type: EventType.IncidentDetected,
+        timestamp: new Date(),
+        source: 'monitoring',
+        payload: { description: 'Critical system failure' },
+    };
+
+    await heimgeist.processEvent(event);
+    (fs.promises.writeFile as jest.Mock).mockClear();
+
+    const actions = heimgeist.getPlannedActions();
+    if (actions.length > 0) {
+        const action = actions[0];
+
+        action.status = 'approved';
+
+        // 2. Call saveAction, which enqueues the promise
+        const savePromise = heimgeist.saveAction(action);
+
+        // 3. Mutate the object before the promise resolves
+        action.status = 'executed';
+
+        // 4. Wait for persistence to finish
+        await savePromise;
+
+        expect(fs.promises.writeFile).toHaveBeenCalled();
+
+        // 5. Verify the persisted JSON matches the snapshotted state ('approved'), not the mutated state ('executed')
+        const writeCalls = (fs.promises.writeFile as jest.Mock).mock.calls;
+        const actionWrite = writeCalls.find((call: unknown[]) =>
+            typeof call[0] === 'string' && call[0].includes(action.id)
+        );
+        expect(actionWrite).toBeDefined();
+        if (actionWrite) {
+            const savedAction = JSON.parse(actionWrite[1] as string);
+            expect(savedAction.status).toBe('approved');
+            expect(savedAction.status).not.toBe('executed');
+        }
+    }
+  });
 });
