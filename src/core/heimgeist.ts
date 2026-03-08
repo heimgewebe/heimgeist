@@ -1087,7 +1087,9 @@ export class Heimgeist {
   }
 
   /**
-   * Public method to persist a specific action (e.g. after update)
+   * Public method to persist a specific action (e.g. after update).
+   * Writes are strictly serialized via actionSaveQueue to prevent state
+   * corruption if fire-and-forget callers resolve out of order.
    */
   public async saveAction(action: PlannedAction): Promise<void> {
     if (this.config.persistenceEnabled === false) return;
@@ -1535,6 +1537,8 @@ export class Heimgeist {
 
   /**
    * Approve a planned action
+   * The boolean return value reflects an in-memory state transition.
+   * Persistence to disk is triggered asynchronously in the background.
    */
   approveAction(actionId: string): boolean {
     const action = this.plannedActions.get(actionId);
@@ -1548,6 +1552,8 @@ export class Heimgeist {
 
   /**
    * Reject a planned action
+   * The boolean return value reflects an in-memory state transition.
+   * Persistence to disk is triggered asynchronously in the background.
    */
   rejectAction(actionId: string): boolean {
     const action = this.plannedActions.get(actionId);
