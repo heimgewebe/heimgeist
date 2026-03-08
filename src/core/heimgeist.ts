@@ -78,6 +78,7 @@ export class Heimgeist {
   private validators: Map<string, ValidateFunction> = new Map();
   private contractIds: Map<string, string> = new Map();
   private gateHealthy: boolean = true;
+  private actionSaveQueue: Promise<void> = Promise.resolve();
 
   constructor(config?: HeimgeistConfig, logger: Logger = defaultLogger, chronik?: ChronikClient) {
     // console.log('Heimgeist constructor config:', config);
@@ -1086,20 +1087,27 @@ export class Heimgeist {
   }
 
   /**
-   * Public method to persist a specific action (e.g. after update)
+   * Public method to persist a specific action (e.g. after update).
+   * Writes are strictly serialized via actionSaveQueue to preserve
+   * durable write order for async callers.
    */
   public async saveAction(action: PlannedAction): Promise<void> {
     if (this.config.persistenceEnabled === false) return;
 
-    try {
-      if (!fs.existsSync(ACTIONS_DIR)) fs.mkdirSync(ACTIONS_DIR, { recursive: true });
-      fs.writeFileSync(
-        path.join(ACTIONS_DIR, `${action.id}.json`),
-        JSON.stringify(action, null, 2)
-      );
-    } catch (e) {
-      this.logger.error(`Failed to persist action ${action.id}: ${e}`);
-    }
+    // Snapshot state before enqueuing to prevent persisting later mutations
+    const filePath = path.join(ACTIONS_DIR, `${action.id}.json`);
+    const serialized = JSON.stringify(action, null, 2);
+
+    this.actionSaveQueue = this.actionSaveQueue.then(async () => {
+      try {
+        await fs.promises.mkdir(ACTIONS_DIR, { recursive: true });
+        await fs.promises.writeFile(filePath, serialized);
+      } catch (e) {
+        this.logger.error(`Failed to persist action ${action.id}: ${e}`);
+      }
+    });
+
+    return this.actionSaveQueue;
   }
 
   /**
@@ -1530,6 +1538,8 @@ export class Heimgeist {
 
   /**
    * Approve a planned action
+   * The boolean return value reflects an in-memory state transition.
+   * Persistence to disk is triggered asynchronously in the background.
    */
   approveAction(actionId: string): boolean {
     const action = this.plannedActions.get(actionId);
@@ -1543,6 +1553,8 @@ export class Heimgeist {
 
   /**
    * Reject a planned action
+   * The boolean return value reflects an in-memory state transition.
+   * Persistence to disk is triggered asynchronously in the background.
    */
   rejectAction(actionId: string): boolean {
     const action = this.plannedActions.get(actionId);
