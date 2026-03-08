@@ -21,7 +21,7 @@ export class MockChronikClient implements ChronikClient {
     this.events.push(event);
   }
 
-  async nextEvent(types: (EventType | string)[]): Promise<ChronikEvent | null> {
+  async nextEvent(types: string[]): Promise<ChronikEvent | null> {
     // Simple FIFO for the mock
     if (this.events.length > 0) {
       const event = this.events.shift();

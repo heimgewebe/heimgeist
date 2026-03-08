@@ -439,7 +439,7 @@ export interface HeimgeistSelfStateSnapshotEvent {
  * Interface for Chronik Client
  */
 export interface ChronikClient {
-  nextEvent(types: (EventType | string)[]): Promise<ChronikEvent | null>;
+  nextEvent(types: string[]): Promise<ChronikEvent | null>;
   append(event: ChronikEvent | HeimgeistInsightEvent | HeimgeistSelfStateSnapshotEvent): Promise<void>;
 }
 
