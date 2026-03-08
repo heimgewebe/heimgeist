@@ -13,6 +13,35 @@ export function createApiRouter(heimgeist?: Heimgeist): Router {
   // Middleware to parse JSON
   router.use(express.json());
 
+  // Authentication middleware
+  const authMiddleware: RequestHandler = (req: Request, res: Response, next: NextFunction): void => {
+    let apiKey: string | undefined;
+
+    // Check X-API-Key header
+    const xApiKey = req.headers['x-api-key'];
+    if (typeof xApiKey === 'string') {
+      apiKey = xApiKey;
+    }
+
+    // Check Authorization header (Bearer token)
+    const authHeader = req.headers['authorization'];
+    if (typeof authHeader === 'string' && authHeader.toLowerCase().startsWith('bearer ')) {
+      apiKey = authHeader.substring(7);
+    }
+
+    if (instance.validateApiKey(apiKey)) {
+      next();
+    } else {
+      res.status(401).json({
+        error: 'Unauthorized',
+        message: 'Invalid or missing API key',
+      });
+    }
+  };
+
+  // Apply auth middleware to all routes in this router
+  router.use(authMiddleware);
+
   /**
    * POST /heimgeist/analyse
    * Run an analysis based on the provided request

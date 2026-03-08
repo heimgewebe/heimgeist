@@ -1,7 +1,7 @@
 import { v4 as uuidv4 } from 'uuid';
 import * as fs from 'fs';
 import * as path from 'path';
-import * as crypto from 'crypto';
+import * as crypto from 'node:crypto';
 import Ajv, { ValidateFunction } from 'ajv';
 import addFormats from 'ajv-formats';
 import * as KnowledgeObservatoryContract from '../contracts/vendor/knowledge.observatory.v1.schema.json';
@@ -117,6 +117,11 @@ export class Heimgeist {
         this.logger.warn('Warning: Running RealChronikClient without CHRONIK_TOKEN. Ingest/Poll might fail.');
     }
 
+    // Security check: API Key
+    if (!this.config.apiKey && !process.env.HEIMGEIST_API_KEY) {
+        this.logger.warn('SECURITY WARNING: No API key configured. The API will be unauthenticated.');
+    }
+
     // Runtime Environment Check: fetch API
     if (typeof fetch === 'undefined') {
         this.logger.error('Runtime Error: Global fetch API is not available. Node.js >= 18.17.0 is required.');
@@ -194,6 +199,35 @@ export class Heimgeist {
 
     } catch (error) {
       this.logger.warn(`Failed to refresh state: ${error}`);
+    }
+  }
+
+  /**
+   * Validate an API key against the configuration.
+   * Uses constant-time comparison to prevent timing attacks.
+   * Fail-closed: returns false if no API key is configured.
+   */
+  public validateApiKey(providedKey: string | undefined): boolean {
+    const configuredKey = this.config.apiKey || process.env.HEIMGEIST_API_KEY;
+
+    if (!configuredKey || !providedKey) {
+      return false;
+    }
+
+    try {
+      const configuredBuffer = Buffer.from(configuredKey);
+      const providedBuffer = Buffer.from(providedKey);
+
+      if (configuredBuffer.length !== providedBuffer.length) {
+        // Still perform a comparison to maintain similar timing if possible,
+        // although length check already leaks some info.
+        // timingSafeEqual requires buffers of same length.
+        return false;
+      }
+
+      return crypto.timingSafeEqual(configuredBuffer, providedBuffer);
+    } catch (error) {
+      return false;
     }
   }
 
@@ -1839,6 +1873,7 @@ export class Heimgeist {
           'token',
           'secret',
           'password',
+          'apikey',
           'auth_code',
           'api_key',
           'credential',
