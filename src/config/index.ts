@@ -52,6 +52,7 @@ const DEFAULT_CONFIG: HeimgeistConfig = {
     },
   ],
   persistenceEnabled: true,
+  apiKey: process.env.HEIMGEIST_API_KEY,
 };
 
 /**
@@ -112,6 +113,7 @@ function mergeConfig(
         ? override.persistenceEnabled
         : defaults.persistenceEnabled,
     artifactsDir: override.artifactsDir !== undefined ? override.artifactsDir : defaults.artifactsDir,
+    apiKey: override.apiKey !== undefined ? override.apiKey : defaults.apiKey,
   };
 }
 
@@ -126,6 +128,7 @@ export function getDefaultConfig(): HeimgeistConfig {
     eventSources: DEFAULT_CONFIG.eventSources.map((e) => ({ ...e })),
     outputs: DEFAULT_CONFIG.outputs.map((o) => ({ ...o })),
     persistenceEnabled: DEFAULT_CONFIG.persistenceEnabled,
+    apiKey: DEFAULT_CONFIG.apiKey,
   };
 }
 

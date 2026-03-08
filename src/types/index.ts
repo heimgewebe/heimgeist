@@ -171,6 +171,7 @@ export interface HeimgeistConfig {
   outputs: OutputConfig[];
   persistenceEnabled?: boolean;
   artifactsDir?: string;
+  apiKey?: string;
 }
 
 /**

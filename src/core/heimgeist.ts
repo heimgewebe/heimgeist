@@ -1,7 +1,7 @@
 import { v4 as uuidv4 } from 'uuid';
 import * as fs from 'fs';
 import * as path from 'path';
-import * as crypto from 'crypto';
+import * as crypto from 'node:crypto';
 import Ajv, { ValidateFunction } from 'ajv';
 import addFormats from 'ajv-formats';
 import * as KnowledgeObservatoryContract from '../contracts/vendor/knowledge.observatory.v1.schema.json';
@@ -118,6 +118,13 @@ export class Heimgeist {
         this.logger.warn('Warning: Running RealChronikClient without CHRONIK_TOKEN. Ingest/Poll might fail.');
     }
 
+    // Security check: API Key
+    if (!this.config.apiKey && !process.env.HEIMGEIST_API_KEY) {
+      this.logger.warn(
+        'SECURITY WARNING: No API key configured. Protected /heimgeist/* routes will reject all requests with 401.'
+      );
+    }
+
     // Runtime Environment Check: fetch API
     if (typeof fetch === 'undefined') {
         this.logger.error('Runtime Error: Global fetch API is not available. Node.js >= 18.17.0 is required.');
@@ -195,6 +202,30 @@ export class Heimgeist {
 
     } catch (error) {
       this.logger.warn(`Failed to refresh state: ${error}`);
+    }
+  }
+
+  /**
+   * Validate an API key against the configuration.
+   * Uses constant-time comparison (via hashing) to prevent timing attacks.
+   * Fail-closed: returns false if no API key is configured.
+   */
+  public validateApiKey(providedKey: string | undefined): boolean {
+    const configuredKey = this.config.apiKey || process.env.HEIMGEIST_API_KEY;
+
+    if (!configuredKey || !providedKey) {
+      return false;
+    }
+
+    try {
+      // Use SHA-256 to hash both keys to a fixed length before comparison
+      // to ensure constant-time behavior regardless of input length mismatch.
+      const configuredHash = crypto.createHash('sha256').update(configuredKey).digest();
+      const providedHash = crypto.createHash('sha256').update(providedKey).digest();
+
+      return crypto.timingSafeEqual(configuredHash, providedHash);
+    } catch (error) {
+      return false;
     }
   }
 
@@ -1664,6 +1695,7 @@ export class Heimgeist {
       })),
       eventSources: this.config.eventSources.map((source) => ({ ...source })),
       outputs: this.config.outputs.map((output) => ({ ...output })),
+      apiKey: this.config.apiKey || process.env.HEIMGEIST_API_KEY,
     };
     return this.sanitizePayload(config);
   }
@@ -1851,6 +1883,7 @@ export class Heimgeist {
           'token',
           'secret',
           'password',
+          'apikey',
           'auth_code',
           'api_key',
           'credential',

@@ -7,6 +7,7 @@ import { EventType, AutonomyLevel, HeimgeistRole } from '../types';
 describe('Heimgeist API Server', () => {
   let app: express.Application;
   let heimgeist: Heimgeist;
+  const TEST_API_KEY = 'test-api-key';
 
   beforeEach(() => {
     heimgeist = new Heimgeist({
@@ -21,9 +22,13 @@ describe('Heimgeist API Server', () => {
       eventSources: [],
       outputs: [],
       persistenceEnabled: false,
+      apiKey: TEST_API_KEY,
     });
     app = createApp(heimgeist);
   });
+
+  // Helper to add auth header to requests
+  const auth = (req: any) => req.set('X-API-Key', TEST_API_KEY);
 
   describe('GET /health', () => {
     it('should return health status', async () => {
@@ -48,7 +53,7 @@ describe('Heimgeist API Server', () => {
 
   describe('GET /heimgeist/status', () => {
     it('should return current status', async () => {
-      const response = await request(app).get('/heimgeist/status');
+      const response = await auth(request(app).get('/heimgeist/status'));
       expect(response.status).toBe(200);
       expect(response.body.version).toBe('1.0.0');
       expect(response.body.autonomyLevel).toBe(AutonomyLevel.Warning);
@@ -58,7 +63,7 @@ describe('Heimgeist API Server', () => {
 
   describe('POST /heimgeist/analyse', () => {
     it('should run an analysis', async () => {
-      const response = await request(app).post('/heimgeist/analyse').send({ depth: 'quick' });
+      const response = await auth(request(app).post('/heimgeist/analyse')).send({ depth: 'quick' });
 
       expect(response.status).toBe(200);
       expect(response.body.id).toBeDefined();
@@ -67,14 +72,14 @@ describe('Heimgeist API Server', () => {
     });
 
     it('should accept analyze spelling', async () => {
-      const response = await request(app).post('/heimgeist/analyze').send({ depth: 'deep' });
+      const response = await auth(request(app).post('/heimgeist/analyze')).send({ depth: 'deep' });
 
       expect(response.status).toBe(200);
       expect(response.body.id).toBeDefined();
     });
 
     it('should use default depth if not provided', async () => {
-      const response = await request(app).post('/heimgeist/analyse').send({});
+      const response = await auth(request(app).post('/heimgeist/analyse')).send({});
 
       expect(response.status).toBe(200);
       expect(response.body.id).toBeDefined();
@@ -83,7 +88,7 @@ describe('Heimgeist API Server', () => {
 
   describe('GET /heimgeist/risk', () => {
     it('should return risk assessment', async () => {
-      const response = await request(app).get('/heimgeist/risk');
+      const response = await auth(request(app).get('/heimgeist/risk'));
       expect(response.status).toBe(200);
       expect(response.body.level).toBeDefined();
       expect(response.body.reasons).toBeInstanceOf(Array);
@@ -93,7 +98,7 @@ describe('Heimgeist API Server', () => {
 
   describe('GET /heimgeist/insights', () => {
     it('should return insights list', async () => {
-      const response = await request(app).get('/heimgeist/insights');
+      const response = await auth(request(app).get('/heimgeist/insights'));
       expect(response.status).toBe(200);
       expect(response.body.insights).toBeInstanceOf(Array);
       expect(response.body.count).toBeDefined();
@@ -101,15 +106,14 @@ describe('Heimgeist API Server', () => {
 
     it('should show insights after processing events', async () => {
       // Submit an event first
-      await request(app)
-        .post('/heimgeist/events')
+      await auth(request(app).post('/heimgeist/events'))
         .send({
           type: EventType.CIResult,
           source: 'test',
           payload: { status: 'failed' },
         });
 
-      const response = await request(app).get('/heimgeist/insights');
+      const response = await auth(request(app).get('/heimgeist/insights'));
       expect(response.status).toBe(200);
       expect(response.body.count).toBeGreaterThan(0);
     });
@@ -117,7 +121,7 @@ describe('Heimgeist API Server', () => {
 
   describe('GET /heimgeist/actions', () => {
     it('should return planned actions list', async () => {
-      const response = await request(app).get('/heimgeist/actions');
+      const response = await auth(request(app).get('/heimgeist/actions'));
       expect(response.status).toBe(200);
       expect(response.body.actions).toBeInstanceOf(Array);
       expect(response.body.count).toBeDefined();
@@ -126,8 +130,7 @@ describe('Heimgeist API Server', () => {
 
   describe('POST /heimgeist/events', () => {
     it('should process a new event', async () => {
-      const response = await request(app)
-        .post('/heimgeist/events')
+      const response = await auth(request(app).post('/heimgeist/events'))
         .send({
           type: EventType.CIResult,
           source: 'github-actions',
@@ -141,7 +144,7 @@ describe('Heimgeist API Server', () => {
     });
 
     it('should generate event ID if not provided', async () => {
-      const response = await request(app).post('/heimgeist/events').send({
+      const response = await auth(request(app).post('/heimgeist/events')).send({
         type: EventType.PROpened,
         payload: {},
       });
@@ -151,14 +154,14 @@ describe('Heimgeist API Server', () => {
     });
 
     it('should use default values for missing fields', async () => {
-      const response = await request(app).post('/heimgeist/events').send({});
+      const response = await auth(request(app).post('/heimgeist/events')).send({});
 
       expect(response.status).toBe(200);
       expect(response.body.eventId).toBeDefined();
     });
 
     it('should reject invalid request body', async () => {
-      const response = await request(app).post('/heimgeist/events').send('invalid');
+      const response = await auth(request(app).post('/heimgeist/events')).send('invalid');
 
       expect(response.status).toBe(400);
       expect(response.body.error).toBeDefined();
@@ -168,8 +171,7 @@ describe('Heimgeist API Server', () => {
   describe('POST /heimgeist/explain', () => {
     it('should explain an insight', async () => {
       // Create an event to generate insights
-      await request(app)
-        .post('/heimgeist/events')
+      await auth(request(app).post('/heimgeist/events'))
         .send({
           type: EventType.CIResult,
           source: 'test',
@@ -178,8 +180,7 @@ describe('Heimgeist API Server', () => {
 
       const insights = heimgeist.getInsights();
       if (insights.length > 0) {
-        const response = await request(app)
-          .post('/heimgeist/explain')
+        const response = await auth(request(app).post('/heimgeist/explain'))
           .send({ insightId: insights[0].id });
 
         expect(response.status).toBe(200);
@@ -188,8 +189,7 @@ describe('Heimgeist API Server', () => {
     });
 
     it('should return 404 for non-existent insight', async () => {
-      const response = await request(app)
-        .post('/heimgeist/explain')
+      const response = await auth(request(app).post('/heimgeist/explain'))
         .send({ insightId: 'non-existent-id' });
 
       expect(response.status).toBe(404);
@@ -199,7 +199,7 @@ describe('Heimgeist API Server', () => {
 
   describe('GET /heimgeist/config', () => {
     it('should return current configuration', async () => {
-      const response = await request(app).get('/heimgeist/config');
+      const response = await auth(request(app).get('/heimgeist/config'));
       expect(response.status).toBe(200);
       expect(response.body.autonomyLevel).toBe(AutonomyLevel.Warning);
       expect(response.body.activeRoles).toBeInstanceOf(Array);
@@ -208,7 +208,7 @@ describe('Heimgeist API Server', () => {
 
   describe('PATCH /heimgeist/config/autonomy', () => {
     it('should update autonomy level', async () => {
-      const response = await request(app).patch('/heimgeist/config/autonomy').send({ level: 3 });
+      const response = await auth(request(app).patch('/heimgeist/config/autonomy')).send({ level: 3 });
 
       expect(response.status).toBe(200);
       expect(response.body.success).toBe(true);
@@ -216,15 +216,14 @@ describe('Heimgeist API Server', () => {
     });
 
     it('should reject invalid autonomy level', async () => {
-      const response = await request(app).patch('/heimgeist/config/autonomy').send({ level: 5 });
+      const response = await auth(request(app).patch('/heimgeist/config/autonomy')).send({ level: 5 });
 
       expect(response.status).toBe(400);
       expect(response.body.error).toBeDefined();
     });
 
     it('should reject non-numeric autonomy level', async () => {
-      const response = await request(app)
-        .patch('/heimgeist/config/autonomy')
+      const response = await auth(request(app).patch('/heimgeist/config/autonomy'))
         .send({ level: 'invalid' });
 
       expect(response.status).toBe(400);
@@ -235,8 +234,7 @@ describe('Heimgeist API Server', () => {
   describe('POST /heimgeist/actions/:id/approve', () => {
     it('should approve a pending action', async () => {
       // Generate a high-severity event to create an action
-      await request(app)
-        .post('/heimgeist/events')
+      await auth(request(app).post('/heimgeist/events'))
         .send({
           type: EventType.IncidentDetected,
           source: 'test',
@@ -245,7 +243,7 @@ describe('Heimgeist API Server', () => {
 
       const actions = heimgeist.getPlannedActions();
       if (actions.length > 0) {
-        const response = await request(app).post(`/heimgeist/actions/${actions[0].id}/approve`);
+        const response = await auth(request(app).post(`/heimgeist/actions/${actions[0].id}/approve`));
 
         expect(response.status).toBe(200);
         expect(response.body.success).toBe(true);
@@ -253,7 +251,7 @@ describe('Heimgeist API Server', () => {
     });
 
     it('should return 404 for non-existent action', async () => {
-      const response = await request(app).post('/heimgeist/actions/non-existent-id/approve');
+      const response = await auth(request(app).post('/heimgeist/actions/non-existent-id/approve'));
 
       expect(response.status).toBe(404);
       expect(response.body.error).toBeDefined();
@@ -263,8 +261,7 @@ describe('Heimgeist API Server', () => {
   describe('POST /heimgeist/actions/:id/reject', () => {
     it('should reject a pending action', async () => {
       // Generate a high-severity event to create an action
-      await request(app)
-        .post('/heimgeist/events')
+      await auth(request(app).post('/heimgeist/events'))
         .send({
           type: EventType.IncidentDetected,
           source: 'test',
@@ -273,7 +270,7 @@ describe('Heimgeist API Server', () => {
 
       const actions = heimgeist.getPlannedActions();
       if (actions.length > 0) {
-        const response = await request(app).post(`/heimgeist/actions/${actions[0].id}/reject`);
+        const response = await auth(request(app).post(`/heimgeist/actions/${actions[0].id}/reject`));
 
         expect(response.status).toBe(200);
         expect(response.body.success).toBe(true);
@@ -281,7 +278,7 @@ describe('Heimgeist API Server', () => {
     });
 
     it('should return 404 for non-existent action', async () => {
-      const response = await request(app).post('/heimgeist/actions/non-existent-id/reject');
+      const response = await auth(request(app).post('/heimgeist/actions/non-existent-id/reject'));
 
       expect(response.status).toBe(404);
       expect(response.body.error).toBeDefined();
