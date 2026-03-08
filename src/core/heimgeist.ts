@@ -119,7 +119,9 @@ export class Heimgeist {
 
     // Security check: API Key
     if (!this.config.apiKey && !process.env.HEIMGEIST_API_KEY) {
-        this.logger.warn('SECURITY WARNING: No API key configured. The API will be unauthenticated.');
+      this.logger.warn(
+        'SECURITY WARNING: No API key configured. Protected /heimgeist/* routes will reject all requests with 401.'
+      );
     }
 
     // Runtime Environment Check: fetch API
@@ -204,7 +206,7 @@ export class Heimgeist {
 
   /**
    * Validate an API key against the configuration.
-   * Uses constant-time comparison to prevent timing attacks.
+   * Uses constant-time comparison (via hashing) to prevent timing attacks.
    * Fail-closed: returns false if no API key is configured.
    */
   public validateApiKey(providedKey: string | undefined): boolean {
@@ -215,17 +217,12 @@ export class Heimgeist {
     }
 
     try {
-      const configuredBuffer = Buffer.from(configuredKey);
-      const providedBuffer = Buffer.from(providedKey);
+      // Use SHA-256 to hash both keys to a fixed length before comparison
+      // to ensure constant-time behavior regardless of input length mismatch.
+      const configuredHash = crypto.createHash('sha256').update(configuredKey).digest();
+      const providedHash = crypto.createHash('sha256').update(providedKey).digest();
 
-      if (configuredBuffer.length !== providedBuffer.length) {
-        // Still perform a comparison to maintain similar timing if possible,
-        // although length check already leaks some info.
-        // timingSafeEqual requires buffers of same length.
-        return false;
-      }
-
-      return crypto.timingSafeEqual(configuredBuffer, providedBuffer);
+      return crypto.timingSafeEqual(configuredHash, providedHash);
     } catch (error) {
       return false;
     }
@@ -1686,6 +1683,7 @@ export class Heimgeist {
       })),
       eventSources: this.config.eventSources.map((source) => ({ ...source })),
       outputs: this.config.outputs.map((output) => ({ ...output })),
+      apiKey: this.config.apiKey || process.env.HEIMGEIST_API_KEY,
     };
     return this.sanitizePayload(config);
   }

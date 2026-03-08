@@ -10,9 +10,6 @@ export function createApiRouter(heimgeist?: Heimgeist): Router {
   const router = Router();
   const instance = heimgeist || createHeimgeist();
 
-  // Middleware to parse JSON
-  router.use(express.json());
-
   // Authentication middleware
   const authMiddleware: RequestHandler = (req: Request, res: Response, next: NextFunction): void => {
     let apiKey: string | undefined;
@@ -39,8 +36,11 @@ export function createApiRouter(heimgeist?: Heimgeist): Router {
     }
   };
 
-  // Apply auth middleware to all routes in this router
+  // Apply auth middleware to all routes in this router before body parsing
   router.use(authMiddleware);
+
+  // Middleware to parse JSON (only for authenticated requests)
+  router.use(express.json());
 
   /**
    * POST /heimgeist/analyse
