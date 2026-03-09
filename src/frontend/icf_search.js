@@ -1,4 +1,3 @@
-
 /**
  * Creates a list item for a category search result.
  * @param {Object} cat - The category object {code, title, chapter}.
@@ -20,7 +19,9 @@ function createCategoryListItem(cat, term, regex) {
 
   if (term) {
     // Use pre-compiled regex if provided, otherwise create it as fallback.
-    const re = regex || new RegExp(`(${term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi');
+    const baseRe = regex || new RegExp(`(${term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi');
+    // Ensure the regex is global so we don't hang in the while loop if a custom non-global regex was passed
+    const re = baseRe.global ? baseRe : new RegExp(baseRe.source, baseRe.flags + 'g');
 
     let lastIndex = 0;
     // Ensure we iterate reliably even if re is global

@@ -1,4 +1,4 @@
-const { createCategoryListItem } = require('../src/frontend/icf_search');
+import { createCategoryListItem } from '../src/frontend/icf_search';
 
 // Improved Minimal DOM Mock (adapted from tests/icf_xss.test.ts)
 class MockElement {
@@ -152,5 +152,17 @@ describe('createCategoryListItem', () => {
         expect(marks?.[0].textContent).toBe('Category');
         // 'A1' should NOT be highlighted because we provided a custom regex
         expect(textSpan?.children.some(c => c.tagName === 'MARK' && c.textContent === 'A1')).toBe(false);
+    });
+
+    it('should NOT hang when given a non-global custom regex', () => {
+        const nonGlobalRegex = /Test/;
+        const li = createCategoryListItem(cat, 'A1', nonGlobalRegex) as unknown as MockElement;
+
+        const textSpan = li.children.find(c => c.className === 'search-text');
+        const marks = textSpan?.children.filter(c => c.tagName === 'MARK');
+        // It should still highlight correctly because we normalize the regex to global in production code.
+        expect(marks?.length).toBe(1);
+        expect(marks?.[0].textContent).toBe('Test');
+        expect(textSpan?.textContent).toBe('A1 – Test Category');
     });
 });
