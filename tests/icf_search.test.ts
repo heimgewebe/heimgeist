@@ -60,10 +60,22 @@ class MockTextNode extends MockElement {
 
 // Setup Global DOM mocks
 const globalAny = global as any;
-globalAny.document = {
-    createElement: (tag: string) => new MockElement(tag),
-    createTextNode: (text: string) => new MockTextNode(text),
-};
+const previousDocument = globalAny.document;
+
+beforeAll(() => {
+    globalAny.document = {
+        createElement: (tag: string) => new MockElement(tag),
+        createTextNode: (text: string) => new MockTextNode(text),
+    };
+});
+
+afterAll(() => {
+    if (previousDocument === undefined) {
+        delete globalAny.document;
+    } else {
+        globalAny.document = previousDocument;
+    }
+});
 
 describe('createCategoryListItem', () => {
     const cat = { code: 'A1', title: 'Test Category' };
