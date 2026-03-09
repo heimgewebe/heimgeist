@@ -20,8 +20,8 @@ function createCategoryListItem(cat, term, regex) {
   if (term) {
     // Use pre-compiled regex if provided, otherwise create it as fallback.
     const baseRe = regex || new RegExp(`(${term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi');
-    // Ensure the regex is global so we don't hang in the while loop if a custom non-global regex was passed
-    const re = baseRe.global ? baseRe : new RegExp(baseRe.source, baseRe.flags + 'g');
+    // Ensure global flag to prevent infinite loops in while(exec)
+    const re = baseRe.global ? baseRe : new RegExp(baseRe.source, `${baseRe.flags}g`);
 
     let lastIndex = 0;
     // Ensure we iterate reliably even if re is global

@@ -1,6 +1,6 @@
 import { createCategoryListItem } from '../src/frontend/icf_search';
 
-// Improved Minimal DOM Mock (adapted from tests/icf_xss.test.ts)
+// Minimal DOM Mock (adapted from tests/icf_xss.test.ts)
 class MockElement {
     tagName: string;
     className: string = '';
@@ -30,7 +30,6 @@ class MockElement {
     }
 
     get textContent(): string {
-        // Robust textContent: recursively join all text nodes or elements' textContent
         if (this.children.length > 0) {
             return this.children.map(c => c.textContent).join('');
         }
@@ -80,7 +79,7 @@ afterAll(() => {
 describe('createCategoryListItem', () => {
     const cat = { code: 'A1', title: 'Test Category' };
 
-    it('should correctly highlight a matching search term (Happy Path)', () => {
+    it('should correctly highlight a matching search term', () => {
         const term = 'A1';
         const li = createCategoryListItem(cat, term) as unknown as MockElement;
 
@@ -145,7 +144,7 @@ describe('createCategoryListItem', () => {
     });
 
     it('should perform case-insensitive matching by default', () => {
-        const term = 'test'; // cat.title is 'Test Category'
+        const term = 'test';
         const li = createCategoryListItem(cat, term) as unknown as MockElement;
 
         const textSpan = li.children.find(c => c.className === 'search-text');
@@ -162,7 +161,6 @@ describe('createCategoryListItem', () => {
         const marks = textSpan?.children.filter(c => c.tagName === 'MARK');
         expect(marks?.length).toBe(1);
         expect(marks?.[0].textContent).toBe('Category');
-        // 'A1' should NOT be highlighted because we provided a custom regex
         expect(textSpan?.children.some(c => c.tagName === 'MARK' && c.textContent === 'A1')).toBe(false);
     });
 
@@ -172,7 +170,7 @@ describe('createCategoryListItem', () => {
 
         const textSpan = li.children.find(c => c.className === 'search-text');
         const marks = textSpan?.children.filter(c => c.tagName === 'MARK');
-        // It should still highlight correctly because we normalize the regex to global in production code.
+        // Normalizes to global in production code
         expect(marks?.length).toBe(1);
         expect(marks?.[0].textContent).toBe('Test');
         expect(textSpan?.textContent).toBe('A1 – Test Category');
