@@ -1,8 +1,8 @@
 import request from 'supertest';
 import { createApp, startServer } from './api';
-import { createHeimgeist } from './core';
+import { Heimgeist, createHeimgeist, MockChronikClient } from './core';
 import { getDefaultConfig } from './config';
-import { EventType, AutonomyLevel, HeimgeistRole } from './types';
+import { EventType, AutonomyLevel, HeimgeistRole, HeimgeistConfig } from './types';
 
 /**
  * Integration Tests
@@ -12,17 +12,33 @@ import { EventType, AutonomyLevel, HeimgeistRole } from './types';
  */
 
 describe('Heimgeist Integration Tests', () => {
+  let heimgeist: Heimgeist;
+  let app: any;
+  let mockChronik: MockChronikClient;
+  let config: HeimgeistConfig;
+
   beforeEach(() => {
     jest.resetModules();
+
+    // Suppress console output for cleaner test runs
+    jest.spyOn(console, 'log').mockImplementation(() => {});
+    jest.spyOn(console, 'error').mockImplementation(() => {});
+    jest.spyOn(console, 'warn').mockImplementation(() => {});
+
+    mockChronik = new MockChronikClient();
+    config = getDefaultConfig();
+    config.persistenceEnabled = false;
+
+    heimgeist = createHeimgeist(config, undefined, mockChronik);
+    app = createApp(heimgeist);
+  });
+
+  afterEach(() => {
+    jest.restoreAllMocks();
   });
 
   describe('End-to-End Event Processing Workflow', () => {
     it('should process events through API and generate insights', async () => {
-      const config = getDefaultConfig();
-      config.persistenceEnabled = false;
-      const heimgeist = createHeimgeist(config);
-      const app = createApp(heimgeist);
-
       // 1. Check initial status
       const statusResponse = await request(app).get('/heimgeist/status');
       expect(statusResponse.status).toBe(200);
@@ -61,11 +77,6 @@ describe('Heimgeist Integration Tests', () => {
     });
 
     it('should handle multiple events and maintain consistent state', async () => {
-      const config = getDefaultConfig();
-      config.persistenceEnabled = false;
-      const heimgeist = createHeimgeist(config);
-      const app = createApp(heimgeist);
-
       // Submit multiple events
       const events = [
         {
@@ -99,19 +110,15 @@ describe('Heimgeist Integration Tests', () => {
     });
 
     it('should create and manage actions for critical events', async () => {
-      const config = getDefaultConfig();
-      config.persistenceEnabled = false;
-      config.autonomyLevel = AutonomyLevel.Warning;
+      // Re-initialize with more roles if necessary (Warning is already default)
       config.activeRoles = [
           HeimgeistRole.Observer,
           HeimgeistRole.Critic,
           HeimgeistRole.Director,
           HeimgeistRole.Archivist,
       ];
-
-      const heimgeist = createHeimgeist(config);
-      // console.log('Test Config Autonomy:', heimgeist.getConfig().autonomyLevel);
-      const app = createApp(heimgeist);
+      heimgeist = createHeimgeist(config, undefined, mockChronik);
+      app = createApp(heimgeist);
 
       // Submit critical event
       const eventResponse = await request(app).post('/heimgeist/events').send({
@@ -153,11 +160,6 @@ describe('Heimgeist Integration Tests', () => {
 
   describe('Analysis Workflow', () => {
     it('should run analysis and return comprehensive results', async () => {
-      const config = getDefaultConfig();
-      config.persistenceEnabled = false;
-      const heimgeist = createHeimgeist(config);
-      const app = createApp(heimgeist);
-
       // Submit some events first
       await request(app).post('/heimgeist/events').send({
         type: EventType.CIResult,
@@ -178,11 +180,6 @@ describe('Heimgeist Integration Tests', () => {
     });
 
     it('should support deep analysis', async () => {
-      const config = getDefaultConfig();
-      config.persistenceEnabled = false;
-      const heimgeist = createHeimgeist(config);
-      const app = createApp(heimgeist);
-
       const analysisResponse = await request(app).post('/heimgeist/analyse').send({
         depth: 'deep',
         target: 'repo:test/repo',
@@ -196,11 +193,6 @@ describe('Heimgeist Integration Tests', () => {
 
   describe('Configuration Management', () => {
     it('should allow configuration updates and reflect changes', async () => {
-      const config = getDefaultConfig();
-      config.persistenceEnabled = false;
-      const heimgeist = createHeimgeist(config);
-      const app = createApp(heimgeist);
-
       // Get initial config
       const initialConfig = await request(app).get('/heimgeist/config');
       expect(initialConfig.status).toBe(200);
@@ -222,11 +214,6 @@ describe('Heimgeist Integration Tests', () => {
     });
 
     it('should reject invalid autonomy levels', async () => {
-      const config = getDefaultConfig();
-      config.persistenceEnabled = false;
-      const heimgeist = createHeimgeist(config);
-      const app = createApp(heimgeist);
-
       const invalidLevels = [-1, 4, 10, 'invalid', null];
 
       for (const level of invalidLevels) {
@@ -242,11 +229,6 @@ describe('Heimgeist Integration Tests', () => {
 
   describe('Explanation Workflow', () => {
     it('should explain insights end-to-end', async () => {
-      const config = getDefaultConfig();
-      config.persistenceEnabled = false;
-      const heimgeist = createHeimgeist(config);
-      const app = createApp(heimgeist);
-
       // Generate an insight
       await request(app).post('/heimgeist/events').send({
         type: EventType.CIResult,
@@ -276,11 +258,6 @@ describe('Heimgeist Integration Tests', () => {
 
   describe('Server Lifecycle', () => {
     it('should start and stop server properly', async () => {
-      const config = getDefaultConfig();
-      config.persistenceEnabled = false;
-      const heimgeist = createHeimgeist(config);
-      const app = createApp(heimgeist);
-
       // Test using app directly without starting server
       const response = await request(app).get('/health');
       expect(response.status).toBe(200);
@@ -288,9 +265,6 @@ describe('Heimgeist Integration Tests', () => {
     });
 
     it('should start server on custom port', async () => {
-      const config = getDefaultConfig();
-      config.persistenceEnabled = false;
-      const heimgeist = createHeimgeist(config);
       const port = 3001; // Use non-default port to avoid conflicts
 
       // Start server
@@ -306,11 +280,6 @@ describe('Heimgeist Integration Tests', () => {
 
   describe('Error Handling', () => {
     it('should handle malformed request body gracefully', async () => {
-      const config = getDefaultConfig();
-      config.persistenceEnabled = false;
-      const heimgeist = createHeimgeist(config);
-      const app = createApp(heimgeist);
-
       // Send malformed data without JSON content type
       const response = await request(app)
         .post('/heimgeist/events')
@@ -322,11 +291,6 @@ describe('Heimgeist Integration Tests', () => {
     });
 
     it('should handle non-existent insight explanation', async () => {
-      const config = getDefaultConfig();
-      config.persistenceEnabled = false;
-      const heimgeist = createHeimgeist(config);
-      const app = createApp(heimgeist);
-
       const response = await request(app)
         .post('/heimgeist/explain')
         .send({ insightId: 'non-existent-id' });
@@ -336,11 +300,6 @@ describe('Heimgeist Integration Tests', () => {
     });
 
     it('should handle non-existent action approval', async () => {
-      const config = getDefaultConfig();
-      config.persistenceEnabled = false;
-      const heimgeist = createHeimgeist(config);
-      const app = createApp(heimgeist);
-
       const response = await request(app).post('/heimgeist/actions/fake-id/approve');
 
       expect(response.status).toBe(404);
@@ -350,15 +309,9 @@ describe('Heimgeist Integration Tests', () => {
 
   describe('Multi-Role Integration', () => {
     it('should coordinate between Observer and Critic roles', async () => {
-      const heimgeist = createHeimgeist({
-        autonomyLevel: AutonomyLevel.Warning,
-        activeRoles: [HeimgeistRole.Observer, HeimgeistRole.Critic],
-        policies: [],
-        eventSources: [],
-        outputs: [],
-        persistenceEnabled: false,
-      });
-      const app = createApp(heimgeist);
+      config.activeRoles = [HeimgeistRole.Observer, HeimgeistRole.Critic];
+      heimgeist = createHeimgeist(config, undefined, mockChronik);
+      app = createApp(heimgeist);
 
       // Submit event that should trigger both Observer and Critic
       const response = await request(app).post('/heimgeist/events').send({
@@ -377,18 +330,13 @@ describe('Heimgeist Integration Tests', () => {
     });
 
     it('should plan actions only with Director role active', async () => {
-      const heimgeist = createHeimgeist({
-        autonomyLevel: AutonomyLevel.Warning,
-        activeRoles: [
-          HeimgeistRole.Observer,
-          HeimgeistRole.Critic,
-          HeimgeistRole.Director,
-        ],
-        policies: [],
-        eventSources: [],
-        outputs: [],
-      });
-      const app = createApp(heimgeist);
+      config.activeRoles = [
+        HeimgeistRole.Observer,
+        HeimgeistRole.Critic,
+        HeimgeistRole.Director,
+      ];
+      heimgeist = createHeimgeist(config, undefined, mockChronik);
+      app = createApp(heimgeist);
 
       // Submit critical event
       await request(app).post('/heimgeist/events').send({
@@ -433,18 +381,14 @@ describe('Heimgeist Integration Tests', () => {
     */
 
     it('should plan actions at Warning autonomy level', async () => {
-      const heimgeist = createHeimgeist({
-        autonomyLevel: AutonomyLevel.Warning,
-        activeRoles: [
-          HeimgeistRole.Observer,
-          HeimgeistRole.Critic,
-          HeimgeistRole.Director,
-        ],
-        policies: [],
-        eventSources: [],
-        outputs: [],
-      });
-      const app = createApp(heimgeist);
+      config.autonomyLevel = AutonomyLevel.Warning;
+      config.activeRoles = [
+        HeimgeistRole.Observer,
+        HeimgeistRole.Critic,
+        HeimgeistRole.Director,
+      ];
+      heimgeist = createHeimgeist(config, undefined, mockChronik);
+      app = createApp(heimgeist);
 
       // Submit critical event
       await request(app).post('/heimgeist/events').send({
@@ -462,11 +406,6 @@ describe('Heimgeist Integration Tests', () => {
 
   describe('Risk Assessment Integration', () => {
     it('should escalate risk level with multiple critical events', async () => {
-      const config = getDefaultConfig();
-      config.persistenceEnabled = false;
-      const heimgeist = createHeimgeist(config);
-      const app = createApp(heimgeist);
-
       // Get initial risk
       const initialRisk = await request(app).get('/heimgeist/risk');
       const initialLevel = initialRisk.body.level;
@@ -503,11 +442,6 @@ describe('Heimgeist Integration Tests', () => {
 
   describe('Complete User Journey', () => {
     it('should support a typical user workflow', async () => {
-      const config = getDefaultConfig();
-      config.persistenceEnabled = false;
-      const heimgeist = createHeimgeist(config);
-      const app = createApp(heimgeist);
-
       // 1. User checks system status
       let status = await request(app).get('/heimgeist/status');
       expect(status.status).toBe(200);
