@@ -112,10 +112,10 @@ describe('Heimgeist Integration Tests', () => {
     it('should create and manage actions for critical events', async () => {
       // Re-initialize with more roles if necessary (Warning is already default)
       config.activeRoles = [
-          HeimgeistRole.Observer,
-          HeimgeistRole.Critic,
-          HeimgeistRole.Director,
-          HeimgeistRole.Archivist,
+        HeimgeistRole.Observer,
+        HeimgeistRole.Critic,
+        HeimgeistRole.Director,
+        HeimgeistRole.Archivist,
       ];
       heimgeist = createHeimgeist(config, undefined, mockChronik);
       app = createApp(heimgeist);
