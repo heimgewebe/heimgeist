@@ -13,17 +13,13 @@ import { EventType, AutonomyLevel, HeimgeistRole, HeimgeistConfig } from './type
 
 describe('Heimgeist Integration Tests', () => {
   let heimgeist: Heimgeist;
-  let app: any;
+  let app: ReturnType<typeof createApp>;
   let mockChronik: MockChronikClient;
   let config: HeimgeistConfig;
 
   beforeEach(() => {
-    jest.resetModules();
-
     // Suppress console output for cleaner test runs
     jest.spyOn(console, 'log').mockImplementation(() => {});
-    jest.spyOn(console, 'error').mockImplementation(() => {});
-    jest.spyOn(console, 'warn').mockImplementation(() => {});
 
     mockChronik = new MockChronikClient();
     config = getDefaultConfig();
@@ -112,10 +108,10 @@ describe('Heimgeist Integration Tests', () => {
     it('should create and manage actions for critical events', async () => {
       // Re-initialize with more roles if necessary (Warning is already default)
       config.activeRoles = [
-        HeimgeistRole.Observer,
-        HeimgeistRole.Critic,
-        HeimgeistRole.Director,
-        HeimgeistRole.Archivist,
+          HeimgeistRole.Observer,
+          HeimgeistRole.Critic,
+          HeimgeistRole.Director,
+          HeimgeistRole.Archivist,
       ];
       heimgeist = createHeimgeist(config, undefined, mockChronik);
       app = createApp(heimgeist);
