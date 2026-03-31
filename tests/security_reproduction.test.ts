@@ -4,6 +4,8 @@ import { Heimgeist } from '../src/core';
 import { AutonomyLevel, HeimgeistRole } from '../src/types';
 
 describe('Heimgeist Configuration Disclosure Vulnerability', () => {
+  const TEST_API_KEY = 'test-api-key-for-security';
+
   it('should redact sensitive information in the config endpoint', async () => {
     const heimgeist = new Heimgeist({
       autonomyLevel: AutonomyLevel.Warning,
@@ -32,10 +34,13 @@ describe('Heimgeist Configuration Disclosure Vulnerability', () => {
         },
       ],
       persistenceEnabled: false,
+      apiKey: TEST_API_KEY,
     });
     const app = createApp(heimgeist);
 
-    const response = await request(app).get('/heimgeist/config');
+    const response = await request(app)
+      .get('/heimgeist/config')
+      .set('X-API-Key', TEST_API_KEY);
 
     expect(response.status).toBe(200);
 

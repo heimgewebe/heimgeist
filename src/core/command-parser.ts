@@ -36,8 +36,7 @@ export class CommandParser {
       // Group 4: args
       let tool = (match[1] || match[2]) as HeimgewebeCommand['tool'];
 
-      // Normalize 'self' alias if needed, though 'self' is a valid tool name in type
-      if (tool === 'self') tool = 'self';
+      // 'self' is already a valid tool name in the type union, no normalization needed
 
       const command = match[3];
       const argsStr = match[4]?.trim() || '';
@@ -102,6 +101,11 @@ export class CommandParser {
           currentArg += char;
         }
       }
+    }
+
+    // Handle trailing backslash: preserve it as a literal character
+    if (escaped) {
+      currentArg += '\\';
     }
 
     if (currentArg.length > 0) {

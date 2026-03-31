@@ -224,7 +224,7 @@ export class Heimgeist {
       const providedHash = crypto.createHash('sha256').update(providedKey).digest();
 
       return crypto.timingSafeEqual(configuredHash, providedHash);
-    } catch (error) {
+    } catch {
       return false;
     }
   }
@@ -254,7 +254,7 @@ export class Heimgeist {
       const persisted = await this.selfModel.update(signals);
       if (persisted) {
           this.writeSelfStateBundle();
-          void this.publishSelfStateSnapshot();
+          this.publishSelfStateSnapshot().catch(err => this.logger.warn(`Failed to publish self-state snapshot (background): ${err}`));
       }
   }
 
@@ -487,7 +487,7 @@ export class Heimgeist {
       // Best Effort Atomic Save:
       // We unlink target if exists to handle Windows behavior where rename fails on existing files.
       // This leaves a small window where the file doesn't exist, but ensures we don't get EPERM/EEXIST errors.
-        try {
+      try {
           fs.renameSync(tempPath, filePath);
       } catch (e) {
           // Windows: Rename may fail if target exists
@@ -500,6 +500,8 @@ export class Heimgeist {
               }
           } catch (retryError) {
               this.logger.error(`Artifact save failed (rename retry): ${retryError}`);
+              // Clean up temp file to avoid disk leak
+              try { if (fs.existsSync(tempPath)) fs.unlinkSync(tempPath); } catch { /* ignore cleanup error */ }
               return false;
           }
       }
@@ -1576,7 +1578,7 @@ export class Heimgeist {
     const action = this.plannedActions.get(actionId);
     if (action && action.status === 'pending') {
       action.status = 'approved';
-      void this.saveAction(action);
+      this.saveAction(action).catch(err => this.logger.error(`Failed to persist approved action ${actionId}: ${err}`));
       return true;
     }
     return false;
@@ -1591,7 +1593,7 @@ export class Heimgeist {
     const action = this.plannedActions.get(actionId);
     if (action && action.status === 'pending') {
       action.status = 'rejected';
-      void this.saveAction(action);
+      this.saveAction(action).catch(err => this.logger.error(`Failed to persist rejected action ${actionId}: ${err}`));
       return true;
     }
     return false;
@@ -1666,7 +1668,7 @@ export class Heimgeist {
         // Reflect success
         await this.selfModel.reflect(true);
         this.writeSelfStateBundle();
-        void this.publishSelfStateSnapshot();
+        this.publishSelfStateSnapshot().catch(err => this.logger.warn(`Failed to publish self-state snapshot (background): ${err}`));
 
         return true;
       }
@@ -1676,7 +1678,7 @@ export class Heimgeist {
       this.logger.error(`Failed to execute action ${actionId}: ${error}`);
       await this.selfModel.reflect(false); // Reflect failure
       this.writeSelfStateBundle();
-      void this.publishSelfStateSnapshot();
+      this.publishSelfStateSnapshot().catch(err => this.logger.warn(`Failed to publish self-state snapshot (background): ${err}`));
       return false;
     }
   }
@@ -1954,7 +1956,7 @@ export class Heimgeist {
           }
 
           return true;
-      } catch (e) {
+      } catch {
           return false;
       }
   }

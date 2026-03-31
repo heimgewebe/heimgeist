@@ -63,7 +63,7 @@ export class RealChronikClient implements ChronikClient {
           if (fs.existsSync(this.cursorFile)) {
               return fs.readFileSync(this.cursorFile, 'utf-8').trim() || null;
           }
-      } catch (e) { /* ignore */ }
+      } catch { /* ignore */ }
       return null;
   }
 
@@ -205,7 +205,6 @@ export class RealChronikClient implements ChronikClient {
   }
 
   async append(event: ChronikEvent | HeimgeistInsightEvent | HeimgeistSelfStateSnapshotEvent): Promise<void> {
-    try {
       // Ingest Contract: POST /v1/ingest { domain, payload }
       // We map our internal event structure to the expected ingestion payload.
       // If event has 'kind', it's a new Heimgeist event. If 'type', it's generic ChronikEvent.
@@ -229,13 +228,5 @@ export class RealChronikClient implements ChronikClient {
       if (!response.ok) {
         throw new Error(`Chronik ingest failed: ${response.status} ${response.statusText} [URL: ${this.ingestUrl}]`);
       }
-    } catch (error) {
-      // Log context for debugging ingest mismatches
-      // console.error(`[ChronikClient] Append failed to ${this.ingestUrl}`, error);
-
-      // We log the error but rethrow it so the caller (Archivist) knows it failed
-      // The Archivist handles "Best Effort" logging.
-      throw error;
-    }
   }
 }
