@@ -204,6 +204,10 @@ export class RealChronikClient implements ChronikClient {
       return `${url}${suffix}`;
   }
 
+  /**
+   * Append an event to the Chronik event store.
+   * Errors are propagated to the caller (Archivist) which handles "Best Effort" logging.
+   */
   async append(event: ChronikEvent | HeimgeistInsightEvent | HeimgeistSelfStateSnapshotEvent): Promise<void> {
       // Ingest Contract: POST /v1/ingest { domain, payload }
       // We map our internal event structure to the expected ingestion payload.
