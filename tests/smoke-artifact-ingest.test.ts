@@ -332,4 +332,63 @@ describe('Smoke Test: Artifact Ingestion', () => {
 
         expect(fs.existsSync(testArtifactPath)).toBe(false);
     });
+
+    it('should clean up .tmp file when both rename attempts fail', async () => {
+        // Regression: before the fix, fetchAndSaveArtifact left the .tmp file on disk
+        // when the rename-retry also failed (e.g. on Windows or restricted filesystems).
+        const mockData = {
+            observatory_id: "obs-cleanup",
+            generated_at: new Date().toISOString(),
+            source: "semantah",
+            counts: { total: 1 },
+            topics: [{ name: "topic1" }],
+            signals: {},
+            blind_spots: [],
+            considered_but_rejected: []
+        };
+        const jsonString = JSON.stringify(mockData);
+        const encoder = new TextEncoder();
+        const buffer = encoder.encode(jsonString);
+
+        global.fetch = jest.fn().mockResolvedValue({
+            ok: true,
+            arrayBuffer: async () => buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength),
+            text: async () => jsonString,
+            headers: { get: () => String(buffer.byteLength) }
+        } as any);
+
+        heimgeist = createHeimgeist({
+            autonomyLevel: 2,
+            activeRoles: [HeimgeistRole.Observer],
+            policies: [],
+            eventSources: [],
+            outputs: [],
+            persistenceEnabled: false,
+            artifactsDir: tempDir
+        });
+
+        // Force both rename attempts to fail so the cleanup path is exercised
+        const renameSpy = jest.spyOn(fs, 'renameSync').mockImplementation(() => {
+            throw new Error('Simulated rename failure');
+        });
+
+        const event: ChronikEvent = {
+            id: uuidv4(),
+            type: EventType.KnowledgeObservatoryPublished,
+            timestamp: new Date(),
+            source: 'semantah',
+            payload: {
+                url: 'http://localhost/knowledge.observatory.json'
+            }
+        };
+
+        await heimgeist.processEvent(event);
+
+        renameSpy.mockRestore();
+
+        // The .tmp file must be cleaned up — no leftover files in the artifacts dir
+        const files = fs.readdirSync(tempDir);
+        const tmpFiles = files.filter(f => f.endsWith('.tmp'));
+        expect(tmpFiles).toHaveLength(0);
+    });
 });

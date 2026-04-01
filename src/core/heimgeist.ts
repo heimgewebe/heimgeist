@@ -270,7 +270,8 @@ export class Heimgeist {
   }
 
   /**
-   * Publish Self-State snapshot event to Chronik
+   * Publish Self-State snapshot event to Chronik.
+   * Errors are propagated to the caller; use .catch() at the call site for background error handling.
    */
   private async publishSelfStateSnapshot(): Promise<void> {
       if (!this.chronik) return;
@@ -286,11 +287,7 @@ export class Heimgeist {
           data: state
       };
 
-      try {
-          await this.chronik.append(event);
-      } catch (error) {
-          this.logger.warn(`Failed to publish self-state snapshot: ${error}`);
-      }
+      await this.chronik.append(event);
   }
 
   /**
@@ -1578,7 +1575,7 @@ export class Heimgeist {
     const action = this.plannedActions.get(actionId);
     if (action && action.status === 'pending') {
       action.status = 'approved';
-      this.saveAction(action).catch(err => this.logger.error(`Failed to persist approved action ${actionId}: ${err}`));
+      void this.saveAction(action);
       return true;
     }
     return false;
@@ -1593,7 +1590,7 @@ export class Heimgeist {
     const action = this.plannedActions.get(actionId);
     if (action && action.status === 'pending') {
       action.status = 'rejected';
-      this.saveAction(action).catch(err => this.logger.error(`Failed to persist rejected action ${actionId}: ${err}`));
+      void this.saveAction(action);
       return true;
     }
     return false;

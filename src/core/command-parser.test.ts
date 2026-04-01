@@ -97,6 +97,15 @@ describe('CommandParser', () => {
       expect(commands[0].args).toEqual(['single quoted', 'double quoted']);
     });
 
+    it('should preserve a trailing backslash in args', () => {
+      // Regression: before the fix, a trailing \ at end of input was silently dropped
+      // because the escape flag was still set when the loop ended.
+      const text = '@heimgewebe/sichter /deep path\\';
+      const commands = CommandParser.parseComment(text, context);
+      expect(commands).toHaveLength(1);
+      expect(commands[0].args).toEqual(['path\\']);
+    });
+
     it('should return empty array for no commands', () => {
       const text = 'Just a regular comment without commands.';
       const commands = CommandParser.parseComment(text, context);
