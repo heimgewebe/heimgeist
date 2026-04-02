@@ -28,6 +28,8 @@ export default [
         AbortController: 'readonly',
         setTimeout: 'readonly',
         clearTimeout: 'readonly',
+        URL: 'readonly',
+        TextDecoder: 'readonly',
       },
     },
     plugins: {

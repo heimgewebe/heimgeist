@@ -224,7 +224,7 @@ export class Heimgeist {
       const providedHash = crypto.createHash('sha256').update(providedKey).digest();
 
       return crypto.timingSafeEqual(configuredHash, providedHash);
-    } catch (error) {
+    } catch {
       return false;
     }
   }
@@ -254,7 +254,7 @@ export class Heimgeist {
       const persisted = await this.selfModel.update(signals);
       if (persisted) {
           this.writeSelfStateBundle();
-          void this.publishSelfStateSnapshot();
+          this.publishSelfStateSnapshot().catch(err => this.logger.warn(`Failed to publish self-state snapshot (background): ${err}`));
       }
   }
 
@@ -270,7 +270,8 @@ export class Heimgeist {
   }
 
   /**
-   * Publish Self-State snapshot event to Chronik
+   * Publish Self-State snapshot event to Chronik.
+   * Errors are propagated to the caller; use .catch() at the call site for background error handling.
    */
   private async publishSelfStateSnapshot(): Promise<void> {
       if (!this.chronik) return;
@@ -286,11 +287,7 @@ export class Heimgeist {
           data: state
       };
 
-      try {
-          await this.chronik.append(event);
-      } catch (error) {
-          this.logger.warn(`Failed to publish self-state snapshot: ${error}`);
-      }
+      await this.chronik.append(event);
   }
 
   /**
@@ -487,7 +484,7 @@ export class Heimgeist {
       // Best Effort Atomic Save:
       // We unlink target if exists to handle Windows behavior where rename fails on existing files.
       // This leaves a small window where the file doesn't exist, but ensures we don't get EPERM/EEXIST errors.
-        try {
+      try {
           fs.renameSync(tempPath, filePath);
       } catch (e) {
           // Windows: Rename may fail if target exists
@@ -500,6 +497,8 @@ export class Heimgeist {
               }
           } catch (retryError) {
               this.logger.error(`Artifact save failed (rename retry): ${retryError}`);
+              // Clean up temp file to avoid disk leak
+              try { if (fs.existsSync(tempPath)) fs.unlinkSync(tempPath); } catch { /* ignore cleanup error */ }
               return false;
           }
       }
@@ -1666,7 +1665,7 @@ export class Heimgeist {
         // Reflect success
         await this.selfModel.reflect(true);
         this.writeSelfStateBundle();
-        void this.publishSelfStateSnapshot();
+        this.publishSelfStateSnapshot().catch(err => this.logger.warn(`Failed to publish self-state snapshot (background): ${err}`));
 
         return true;
       }
@@ -1676,7 +1675,7 @@ export class Heimgeist {
       this.logger.error(`Failed to execute action ${actionId}: ${error}`);
       await this.selfModel.reflect(false); // Reflect failure
       this.writeSelfStateBundle();
-      void this.publishSelfStateSnapshot();
+      this.publishSelfStateSnapshot().catch(err => this.logger.warn(`Failed to publish self-state snapshot (background): ${err}`));
       return false;
     }
   }
@@ -1954,7 +1953,7 @@ export class Heimgeist {
           }
 
           return true;
-      } catch (e) {
+      } catch {
           return false;
       }
   }

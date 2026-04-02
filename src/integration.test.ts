@@ -1,4 +1,4 @@
-import request from 'supertest';
+import request, { Test } from 'supertest';
 import { createApp, startServer } from './api';
 import { Heimgeist, createHeimgeist, MockChronikClient } from './core';
 import { getDefaultConfig } from './config';
@@ -12,6 +12,9 @@ import { EventType, AutonomyLevel, HeimgeistRole, HeimgeistConfig } from './type
  */
 
 describe('Heimgeist Integration Tests', () => {
+  const TEST_API_KEY = 'test-api-key-for-integration';
+  const auth = (req: Test): Test => req.set('X-API-Key', TEST_API_KEY);
+
   let heimgeist: Heimgeist;
   let app: ReturnType<typeof createApp>;
   let mockChronik: MockChronikClient;
@@ -24,6 +27,7 @@ describe('Heimgeist Integration Tests', () => {
     mockChronik = new MockChronikClient();
     config = getDefaultConfig();
     config.persistenceEnabled = false;
+    config.apiKey = TEST_API_KEY;
 
     heimgeist = createHeimgeist(config, undefined, mockChronik);
     app = createApp(heimgeist);
@@ -36,13 +40,13 @@ describe('Heimgeist Integration Tests', () => {
   describe('End-to-End Event Processing Workflow', () => {
     it('should process events through API and generate insights', async () => {
       // 1. Check initial status
-      const statusResponse = await request(app).get('/heimgeist/status');
+      const statusResponse = await auth(request(app).get('/heimgeist/status'));
       expect(statusResponse.status).toBe(200);
       expect(statusResponse.body.eventsProcessed).toBe(0);
 
       // 2. Submit a CI failure event
-      const eventResponse = await request(app)
-        .post('/heimgeist/events')
+      const eventResponse = await auth(request(app)
+        .post('/heimgeist/events'))
         .send({
           type: EventType.CIResult,
           source: 'github-actions',
@@ -57,17 +61,17 @@ describe('Heimgeist Integration Tests', () => {
       expect(eventResponse.body.insightsCount).toBeGreaterThan(0);
 
       // 3. Verify status was updated
-      const updatedStatus = await request(app).get('/heimgeist/status');
+      const updatedStatus = await auth(request(app).get('/heimgeist/status'));
       expect(updatedStatus.body.eventsProcessed).toBe(1);
       expect(updatedStatus.body.insightsGenerated).toBeGreaterThan(0);
 
       // 4. Get insights
-      const insightsResponse = await request(app).get('/heimgeist/insights');
+      const insightsResponse = await auth(request(app).get('/heimgeist/insights'));
       expect(insightsResponse.status).toBe(200);
       expect(insightsResponse.body.count).toBeGreaterThan(0);
 
       // 5. Get risk assessment
-      const riskResponse = await request(app).get('/heimgeist/risk');
+      const riskResponse = await auth(request(app).get('/heimgeist/risk'));
       expect(riskResponse.status).toBe(200);
       expect(riskResponse.body.level).toBeDefined();
     });
@@ -93,15 +97,17 @@ describe('Heimgeist Integration Tests', () => {
       ];
 
       for (const event of events) {
-        const response = await request(app).post('/heimgeist/events').send(event);
+        const response = await auth(request(app)
+          .post('/heimgeist/events'))
+          .send(event);
         expect(response.status).toBe(200);
       }
 
       // Verify state
-      const status = await request(app).get('/heimgeist/status');
+      const status = await auth(request(app).get('/heimgeist/status'));
       expect(status.body.eventsProcessed).toBe(3);
 
-      const insights = await request(app).get('/heimgeist/insights');
+      const insights = await auth(request(app).get('/heimgeist/insights'));
       expect(insights.body.count).toBeGreaterThan(0);
     });
 
@@ -117,35 +123,38 @@ describe('Heimgeist Integration Tests', () => {
       app = createApp(heimgeist);
 
       // Submit critical event
-      const eventResponse = await request(app).post('/heimgeist/events').send({
-        type: EventType.IncidentDetected,
-        source: 'monitoring',
-        payload: {
-          description: 'Database connection timeout',
-          severity: 'critical',
-        },
-      });
+      const eventResponse = await auth(request(app)
+        .post('/heimgeist/events'))
+        .send({
+          type: EventType.IncidentDetected,
+          source: 'monitoring',
+          payload: {
+            description: 'Database connection timeout',
+            severity: 'critical',
+          },
+        });
 
       expect(eventResponse.status).toBe(200);
       expect(eventResponse.body.insightsCount).toBeGreaterThan(0);
 
       // Check if actions were planned
-      const actionsResponse = await request(app).get('/heimgeist/actions');
+      const actionsResponse = await auth(request(app).get('/heimgeist/actions'));
       expect(actionsResponse.status).toBe(200);
 
       const actions = actionsResponse.body.actions;
       if (actions.length > 0) {
         // Approve first action
         const actionId = actions[0].id;
-        const approveResponse = await request(app).post(
+        const approveResponse = await auth(request(app).post(
           `/heimgeist/actions/${actionId}/approve`
-        );
+        ));
 
         expect(approveResponse.status).toBe(200);
         expect(approveResponse.body.success).toBe(true);
 
         // Verify action status changed
-        const updatedActions = await request(app).get('/heimgeist/actions');
+        const updatedActions = await auth(request(app)
+          .get('/heimgeist/actions'));
         const approvedAction = updatedActions.body.actions.find(
           (a: { id: string }) => a.id === actionId
         );
@@ -157,16 +166,20 @@ describe('Heimgeist Integration Tests', () => {
   describe('Analysis Workflow', () => {
     it('should run analysis and return comprehensive results', async () => {
       // Submit some events first
-      await request(app).post('/heimgeist/events').send({
-        type: EventType.CIResult,
-        source: 'test',
-        payload: { status: 'failed' },
-      });
+      await auth(request(app)
+        .post('/heimgeist/events'))
+        .send({
+          type: EventType.CIResult,
+          source: 'test',
+          payload: { status: 'failed' },
+        });
 
       // Run analysis
-      const analysisResponse = await request(app).post('/heimgeist/analyse').send({
-        depth: 'quick',
-      });
+      const analysisResponse = await auth(request(app)
+        .post('/heimgeist/analyse'))
+        .send({
+          depth: 'quick',
+        });
 
       expect(analysisResponse.status).toBe(200);
       expect(analysisResponse.body.id).toBeDefined();
@@ -176,10 +189,12 @@ describe('Heimgeist Integration Tests', () => {
     });
 
     it('should support deep analysis', async () => {
-      const analysisResponse = await request(app).post('/heimgeist/analyse').send({
-        depth: 'deep',
-        target: 'repo:test/repo',
-      });
+      const analysisResponse = await auth(request(app)
+        .post('/heimgeist/analyse'))
+        .send({
+          depth: 'deep',
+          target: 'repo:test/repo',
+        });
 
       expect(analysisResponse.status).toBe(200);
       expect(analysisResponse.body.id).toBeDefined();
@@ -190,13 +205,13 @@ describe('Heimgeist Integration Tests', () => {
   describe('Configuration Management', () => {
     it('should allow configuration updates and reflect changes', async () => {
       // Get initial config
-      const initialConfig = await request(app).get('/heimgeist/config');
+      const initialConfig = await auth(request(app).get('/heimgeist/config'));
       expect(initialConfig.status).toBe(200);
       const initialLevel = initialConfig.body.autonomyLevel;
 
       // Update autonomy level
-      const updateResponse = await request(app)
-        .patch('/heimgeist/config/autonomy')
+      const updateResponse = await auth(request(app)
+        .patch('/heimgeist/config/autonomy'))
         .send({ level: 3 });
 
       expect(updateResponse.status).toBe(200);
@@ -204,7 +219,7 @@ describe('Heimgeist Integration Tests', () => {
       expect(updateResponse.body.autonomyLevel).toBe(3);
 
       // Verify config changed
-      const updatedConfig = await request(app).get('/heimgeist/config');
+      const updatedConfig = await auth(request(app).get('/heimgeist/config'));
       expect(updatedConfig.body.autonomyLevel).toBe(3);
       expect(updatedConfig.body.autonomyLevel).not.toBe(initialLevel);
     });
@@ -213,8 +228,8 @@ describe('Heimgeist Integration Tests', () => {
       const invalidLevels = [-1, 4, 10, 'invalid', null];
 
       for (const level of invalidLevels) {
-        const response = await request(app)
-          .patch('/heimgeist/config/autonomy')
+        const response = await auth(request(app)
+          .patch('/heimgeist/config/autonomy'))
           .send({ level });
 
         expect(response.status).toBe(400);
@@ -226,22 +241,24 @@ describe('Heimgeist Integration Tests', () => {
   describe('Explanation Workflow', () => {
     it('should explain insights end-to-end', async () => {
       // Generate an insight
-      await request(app).post('/heimgeist/events').send({
-        type: EventType.CIResult,
-        source: 'test',
-        payload: { status: 'failed' },
-      });
+      await auth(request(app)
+        .post('/heimgeist/events'))
+        .send({
+          type: EventType.CIResult,
+          source: 'test',
+          payload: { status: 'failed' },
+        });
 
       // Get insights
-      const insightsResponse = await request(app).get('/heimgeist/insights');
+      const insightsResponse = await auth(request(app).get('/heimgeist/insights'));
       const insights = insightsResponse.body.insights;
 
       if (insights.length > 0) {
         const insightId = insights[0].id;
 
         // Get explanation
-        const explanationResponse = await request(app)
-          .post('/heimgeist/explain')
+        const explanationResponse = await auth(request(app)
+          .post('/heimgeist/explain'))
           .send({ insightId });
 
         expect(explanationResponse.status).toBe(200);
@@ -254,7 +271,8 @@ describe('Heimgeist Integration Tests', () => {
 
   describe('Server Lifecycle', () => {
     it('should start and stop server properly', async () => {
-      // Test using app directly without starting server
+      // Test using app directly without starting server.
+      // /health is a public endpoint — verify it is accessible without authentication.
       const response = await request(app).get('/health');
       expect(response.status).toBe(200);
       expect(response.body.status).toBe('ok');
@@ -277,8 +295,8 @@ describe('Heimgeist Integration Tests', () => {
   describe('Error Handling', () => {
     it('should handle malformed request body gracefully', async () => {
       // Send malformed data without JSON content type
-      const response = await request(app)
-        .post('/heimgeist/events')
+      const response = await auth(request(app)
+        .post('/heimgeist/events'))
         .send('not a json object');
 
       // Should return error for malformed data
@@ -287,8 +305,8 @@ describe('Heimgeist Integration Tests', () => {
     });
 
     it('should handle non-existent insight explanation', async () => {
-      const response = await request(app)
-        .post('/heimgeist/explain')
+      const response = await auth(request(app)
+        .post('/heimgeist/explain'))
         .send({ insightId: 'non-existent-id' });
 
       expect(response.status).toBe(404);
@@ -296,7 +314,8 @@ describe('Heimgeist Integration Tests', () => {
     });
 
     it('should handle non-existent action approval', async () => {
-      const response = await request(app).post('/heimgeist/actions/fake-id/approve');
+      const response = await auth(request(app)
+        .post('/heimgeist/actions/fake-id/approve'));
 
       expect(response.status).toBe(404);
       expect(response.body.error).toBeDefined();
@@ -310,17 +329,19 @@ describe('Heimgeist Integration Tests', () => {
       app = createApp(heimgeist);
 
       // Submit event that should trigger both Observer and Critic
-      const response = await request(app).post('/heimgeist/events').send({
-        type: EventType.CIResult,
-        source: 'test',
-        payload: { status: 'failed' },
-      });
+      const response = await auth(request(app)
+        .post('/heimgeist/events'))
+        .send({
+          type: EventType.CIResult,
+          source: 'test',
+          payload: { status: 'failed' },
+        });
 
       expect(response.status).toBe(200);
       expect(response.body.insightsCount).toBeGreaterThan(0);
 
       // Verify insights from both roles
-      const insights = await request(app).get('/heimgeist/insights');
+      const insights = await auth(request(app).get('/heimgeist/insights'));
       const insightRoles = insights.body.insights.map((i: { role: string }) => i.role);
       expect(insightRoles).toContain('observer');
     });
@@ -335,13 +356,16 @@ describe('Heimgeist Integration Tests', () => {
       app = createApp(heimgeist);
 
       // Submit critical event
-      await request(app).post('/heimgeist/events').send({
-        type: EventType.IncidentDetected,
-        source: 'test',
-        payload: { description: 'Critical failure' },
-      });
+      await auth(request(app)
+        .post('/heimgeist/events'))
+        .send({
+          type: EventType.IncidentDetected,
+          source: 'test',
+          payload: { description: 'Critical failure' },
+        });
 
-      const actions = await request(app).get('/heimgeist/actions');
+      const actions = await auth(request(app)
+        .get('/heimgeist/actions'));
       // With Director active, actions should be planned for high/critical insights
       expect(actions.body.actions).toBeInstanceOf(Array);
     });
@@ -371,7 +395,7 @@ describe('Heimgeist Integration Tests', () => {
       });
 
       // At Passive level, insights may be generated but actions shouldn't be planned
-      const actions = await request(app).get('/heimgeist/actions');
+      const actions = await auth(request(app).get('/heimgeist/actions'));
       expect(actions.body.count).toBe(0);
     });
     */
@@ -387,14 +411,16 @@ describe('Heimgeist Integration Tests', () => {
       app = createApp(heimgeist);
 
       // Submit critical event
-      await request(app).post('/heimgeist/events').send({
-        type: EventType.IncidentDetected,
-        source: 'test',
-        payload: { description: 'Critical failure' },
-      });
+      await auth(request(app)
+        .post('/heimgeist/events'))
+        .send({
+          type: EventType.IncidentDetected,
+          source: 'test',
+          payload: { description: 'Critical failure' },
+        });
 
       // At Warning level, actions should be planned for high/critical insights
-      const actions = await request(app).get('/heimgeist/actions');
+      const actions = await auth(request(app).get('/heimgeist/actions'));
       // Actions should exist if insights are high/critical severity
       expect(actions.body.actions).toBeInstanceOf(Array);
     });
@@ -403,7 +429,7 @@ describe('Heimgeist Integration Tests', () => {
   describe('Risk Assessment Integration', () => {
     it('should escalate risk level with multiple critical events', async () => {
       // Get initial risk
-      const initialRisk = await request(app).get('/heimgeist/risk');
+      const initialRisk = await auth(request(app).get('/heimgeist/risk'));
       const initialLevel = initialRisk.body.level;
 
       // Submit multiple critical events
@@ -417,13 +443,13 @@ describe('Heimgeist Integration Tests', () => {
       ];
 
       for (const event of criticalEvents) {
-        await request(app)
-          .post('/heimgeist/events')
+        await auth(request(app)
+          .post('/heimgeist/events'))
           .send({ ...event, source: 'test' });
       }
 
       // Get updated risk
-      const updatedRisk = await request(app).get('/heimgeist/risk');
+      const updatedRisk = await auth(request(app).get('/heimgeist/risk'));
       const updatedLevel = updatedRisk.body.level;
 
       // Risk should be higher or at least have more reasons
@@ -439,39 +465,43 @@ describe('Heimgeist Integration Tests', () => {
   describe('Complete User Journey', () => {
     it('should support a typical user workflow', async () => {
       // 1. User checks system status
-      let status = await request(app).get('/heimgeist/status');
+      let status = await auth(request(app).get('/heimgeist/status'));
       expect(status.status).toBe(200);
       const initialEventsProcessed = status.body.eventsProcessed;
 
       // 2. User submits a CI failure event
-      await request(app).post('/heimgeist/events').send({
-        type: EventType.CIResult,
-        source: 'github-actions',
-        payload: { status: 'failed', repository: 'user/repo' },
-      });
+      await auth(request(app)
+        .post('/heimgeist/events'))
+        .send({
+          type: EventType.CIResult,
+          source: 'github-actions',
+          payload: { status: 'failed', repository: 'user/repo' },
+        });
 
       // 3. User checks risk assessment
-      const risk = await request(app).get('/heimgeist/risk');
+      const risk = await auth(request(app).get('/heimgeist/risk'));
       expect(risk.status).toBe(200);
       expect(risk.body.level).toBeDefined();
 
       // 4. User lists insights to see what was found
-      const insights = await request(app).get('/heimgeist/insights');
+      const insights = await auth(request(app).get('/heimgeist/insights'));
       expect(insights.status).toBe(200);
       expect(insights.body.count).toBeGreaterThan(0);
 
       // 5. User runs a full analysis
-      const analysis = await request(app).post('/heimgeist/analyse').send({
-        depth: 'deep',
-      });
+      const analysis = await auth(request(app)
+        .post('/heimgeist/analyse'))
+        .send({
+          depth: 'deep',
+        });
       expect(analysis.status).toBe(200);
 
       // 6. User checks if any actions are pending
-      const actions = await request(app).get('/heimgeist/actions');
+      const actions = await auth(request(app).get('/heimgeist/actions'));
       expect(actions.status).toBe(200);
 
       // 7. User checks status again to see changes
-      status = await request(app).get('/heimgeist/status');
+      status = await auth(request(app).get('/heimgeist/status'));
       expect(status.body.eventsProcessed).toBeGreaterThan(initialEventsProcessed);
     });
   });
