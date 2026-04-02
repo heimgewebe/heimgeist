@@ -382,9 +382,11 @@ describe('Smoke Test: Artifact Ingestion', () => {
             }
         };
 
-        await heimgeist.processEvent(event);
-
-        renameSpy.mockRestore();
+        try {
+            await heimgeist.processEvent(event);
+        } finally {
+            renameSpy.mockRestore();
+        }
 
         // The .tmp file must be cleaned up — no leftover files in the artifacts dir
         const files = fs.readdirSync(tempDir);
