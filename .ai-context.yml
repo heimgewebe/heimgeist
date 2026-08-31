@@ -3,8 +3,8 @@ ai_context_version: 1.1
 
 project:
   name: heimgeist
-  summary: "System Self-Reflection Engine that thinks, evaluates, reflects, and orchestrates system-wide."
-  role: reflection_engine
+  summary: "Decommissioned historical reference for the former Heimgewebe system-reflection meta-agent."
+  role: archived_reference
   primary_language: typescript
   visibility: internal
 
@@ -16,65 +16,65 @@ heimgewebe:
     - Learning
     - OS-Context
   fleet:
-    enabled: true
+    enabled: false
   wgx:
-    profile_expected: true
+    profile_expected: false
     guard_smoke_expected: false
 
 interfaces:
-  consumes:
-    - "heimgewebe.command.v1"
-    - "events.plexer"
-  produces:
-    - "insights.*"
-    - "actions.*"
+  consumes: []
+  produces: []
 
 contracts:
   schemas:
     - path: "src/types/index.ts"
-      note: "TypeScript source acting as contract definition (no formal JSON schemas yet)."
+      note: "Historical TypeScript contract surface; not current ecosystem authority."
 
 dependencies:
-  internal:
-    - name: metarepo
-      relationship: uses
-      interface: [docs, contracts]
+  internal: []
   external:
     - name: node
       version: ">=20"
+      note: "Required only to reproduce the historical implementation locally."
 
 architecture:
   entrypoints:
     - "src/cli/index.ts"
   key_paths:
     - path: "src/core/"
-      purpose: "Core Loop and logic"
+      purpose: "Historical Core Loop implementation"
+    - path: "docs/"
+      purpose: "Historical architecture and design record"
   data_flow:
-    input: "Events from Plexer / Commands via Comments"
-    processing: "Heimgeist Core Loop (Observer -> Critic -> Director -> Archivist)"
-    output: "Insights and PlannedActions"
+    input: "Historical repository contents only"
+    processing: "No active runtime contract"
+    output: "No active ecosystem output"
 
 boundaries:
   not_responsible_for:
-    - "Directly executing low-level deployment tasks (delegates to WGX)."
-    - "Ingesting raw network traffic (relies on Plexer)."
+    - "Production authority"
+    - "Task or claim state"
+    - "Runtime execution"
+    - "Event delivery"
+    - "Current ecosystem semantics"
+    - "Agent orchestration"
   dangerous_assumptions:
-    - "Assuming disk persistence is always available in all environments."
+    - "Treating historical Heimgeist documents as current architecture."
+    - "Re-enabling retired Plexer or command-dispatch integrations."
 
 conventions:
-  branching: "main, feature/*"
+  branching: "historical reference; no feature development"
   commit_prefix: "HEIMGEWEBE"
   ci_platform: github_actions
 
 documentation:
-  runbook: docs/heimgeist-core-loop.md
+  runbook: README.md
 
 ai_guidance:
   do:
-    - "Respect the separation of Observer, Critic, Director, and Archivist roles."
-    - "Ensure all state changes are persisted via saveAction."
-    - "Use the defined EventType enums."
+    - "Treat this repository as historical evidence and preserve provenance."
+    - "Route current responsibilities to Grabowski, Bureau, Chronik, Systemkatalog, RepoGround, Plexer or Leitstand as appropriate."
   dont:
-    - "Bypass the Core Loop for logic execution."
-    - "Mutate config objects directly."
-    - "Introduce circular dependencies between core modules."
+    - "Add new features or runtime authority here."
+    - "Use this repository as current system truth."
+    - "Re-enable Heimgeist event production, Plexer fanout or command dispatch."
