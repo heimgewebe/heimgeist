@@ -29,9 +29,17 @@ jobs:
         env:
           GH_TOKEN: ${{ steps.app-token.outputs.token }}
           TARGET_REPO: heimgewebe/heimgeist
+          EXPECTED_REPOSITORY_ID: '1105787260'
           EXPECTED_FREEZE: 4b92bae2c684860399b333cd908878726e6ef4e8
         run: |
           set -euo pipefail
+
+          repo_identity="$(gh api "repos/${TARGET_REPO}" --jq '[.id, .default_branch, .archived] | @tsv')"
+          IFS=$'\t' read -r repository_id default_branch current_archived <<< "${repo_identity}"
+          if [[ "${repository_id}" != "${EXPECTED_REPOSITORY_ID}" || "${default_branch}" != "main" ]]; then
+            echo "repository identity drift: id=${repository_id}, default_branch=${default_branch}" >&2
+            exit 1
+          fi
 
           current_head="$(gh api "repos/${TARGET_REPO}/branches/main" --jq .commit.sha)"
           if [[ "${current_head}" != "${GITHUB_SHA}" ]]; then
@@ -39,7 +47,6 @@ jobs:
             exit 1
           fi
 
-          current_archived="$(gh api "repos/${TARGET_REPO}" --jq .archived)"
           if [[ "${current_archived}" == "true" ]]; then
             echo "Repository is already archived; no mutation needed."
             exit 0
@@ -57,15 +64,17 @@ jobs:
 
           gh api --method PATCH "repos/${TARGET_REPO}" -F archived=true >/dev/null
 
-          archived="$(gh api "repos/${TARGET_REPO}" --jq .archived)"
+          post_identity="$(gh api "repos/${TARGET_REPO}" --jq '[.id, .default_branch, .archived] | @tsv')"
+          IFS=$'\t' read -r post_repository_id post_default_branch archived <<< "${post_identity}"
           post_head="$(gh api "repos/${TARGET_REPO}/branches/main" --jq .commit.sha)"
-          if [[ "${archived}" != "true" || "${post_head}" != "${GITHUB_SHA}" ]]; then
-            echo "Archive readback failed: archived=${archived}, main=${post_head}, expected=${GITHUB_SHA}" >&2
+          if [[ "${post_repository_id}" != "${EXPECTED_REPOSITORY_ID}" || "${post_default_branch}" != "main" || "${archived}" != "true" || "${post_head}" != "${GITHUB_SHA}" ]]; then
+            echo "Archive readback failed: id=${post_repository_id}, default_branch=${post_default_branch}, archived=${archived}, main=${post_head}, expected=${GITHUB_SHA}" >&2
             exit 1
           fi
 
           {
             echo "## Heimgeist archive readback"
+            echo "- repository id: ${post_repository_id}"
             echo "- archived: true"
             echo "- main: ${post_head}"
             echo "- freeze ancestor: ${EXPECTED_FREEZE}"
