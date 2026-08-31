@@ -27,21 +27,22 @@ jobs:
 
       - name: Verify freeze, archive, and read back
         env:
-          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          READ_TOKEN: ${{ github.token }}
+          APP_TOKEN: ${{ steps.app-token.outputs.token }}
           TARGET_REPO: heimgewebe/heimgeist
           EXPECTED_REPOSITORY_ID: '1105787260'
           EXPECTED_FREEZE: 4b92bae2c684860399b333cd908878726e6ef4e8
         run: |
           set -euo pipefail
 
-          repo_identity="$(gh api "repos/${TARGET_REPO}" --jq '[.id, .default_branch, .archived] | @tsv')"
+          repo_identity="$(GH_TOKEN="${READ_TOKEN}" gh api "repos/${TARGET_REPO}" --jq '[.id, .default_branch, .archived] | @tsv')"
           IFS=$'\t' read -r repository_id default_branch current_archived <<< "${repo_identity}"
           if [[ "${repository_id}" != "${EXPECTED_REPOSITORY_ID}" || "${default_branch}" != "main" ]]; then
             echo "repository identity drift: id=${repository_id}, default_branch=${default_branch}" >&2
             exit 1
           fi
 
-          current_head="$(gh api "repos/${TARGET_REPO}/branches/main" --jq .commit.sha)"
+          current_head="$(GH_TOKEN="${READ_TOKEN}" gh api "repos/${TARGET_REPO}/branches/main" --jq .commit.sha)"
           if [[ "${current_head}" != "${GITHUB_SHA}" ]]; then
             echo "main moved during archive attempt: expected ${GITHUB_SHA}, got ${current_head}" >&2
             exit 1
@@ -52,7 +53,7 @@ jobs:
             exit 0
           fi
 
-          compare_status="$(gh api "repos/${TARGET_REPO}/compare/${EXPECTED_FREEZE}...${GITHUB_SHA}" --jq .status)"
+          compare_status="$(GH_TOKEN="${READ_TOKEN}" gh api "repos/${TARGET_REPO}/compare/${EXPECTED_FREEZE}...${GITHUB_SHA}" --jq .status)"
           case "${compare_status}" in
             ahead|identical)
               ;;
@@ -62,11 +63,11 @@ jobs:
               ;;
           esac
 
-          gh api --method PATCH "repos/${TARGET_REPO}" -F archived=true >/dev/null
+          GH_TOKEN="${APP_TOKEN}" gh api --method PATCH "repos/${TARGET_REPO}" -F archived=true >/dev/null
 
-          post_identity="$(gh api "repos/${TARGET_REPO}" --jq '[.id, .default_branch, .archived] | @tsv')"
+          post_identity="$(GH_TOKEN="${READ_TOKEN}" gh api "repos/${TARGET_REPO}" --jq '[.id, .default_branch, .archived] | @tsv')"
           IFS=$'\t' read -r post_repository_id post_default_branch archived <<< "${post_identity}"
-          post_head="$(gh api "repos/${TARGET_REPO}/branches/main" --jq .commit.sha)"
+          post_head="$(GH_TOKEN="${READ_TOKEN}" gh api "repos/${TARGET_REPO}/branches/main" --jq .commit.sha)"
           if [[ "${post_repository_id}" != "${EXPECTED_REPOSITORY_ID}" || "${post_default_branch}" != "main" || "${archived}" != "true" || "${post_head}" != "${GITHUB_SHA}" ]]; then
             echo "Archive readback failed: id=${post_repository_id}, default_branch=${post_default_branch}, archived=${archived}, main=${post_head}, expected=${GITHUB_SHA}" >&2
             exit 1
