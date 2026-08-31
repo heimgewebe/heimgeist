@@ -23,7 +23,7 @@ Heimgeist besitzt damit **keine aktuelle Truth-Ownership, Produktionsautorität 
 Vor der Stilllegung wurden die verbliebenen aktiven Integrationskanten geschlossen:
 
 1. `heimgewebe/plexer#104` entfernte Heimgeist aus dem Live-Fanout. `HEIMGEIST_URL` und `HEIMGEIST_TOKEN` bleiben dort nur parse-kompatibel und können den Consumer nicht mehr aktivieren.
-2. Metarepo entfernt Heimgeist aus der aktiven Command-Dispatch-Autorität und klassifiziert `heimgeist.insight` als historischen Eventvertrag. Das Schema bleibt zur Interpretation alter Chronik-Einträge und Fixtures erhalten.
+2. Metarepo entfernt mit `heimgewebe/metarepo#727` Heimgeist aus der aktiven Command-Dispatch-Autorität. Der Metarepo-eigene Contract `heimgeist.insight` bleibt bewusst als aktiver Decoding-Contract erhalten, damit Chronik und historische Leser vorhandene Ereignisse weiterhin stabil interpretieren können; daraus folgt keine aktive Heimgeist-Runtime oder Producer-Autorität.
 3. Dieses Repository entfernt seine eigene PR-Command-Dispatch-Oberfläche und deaktiviert Renovate, damit keine neue Produktentwicklung oder Abhängigkeitspflege mehr suggeriert wird.
 
 ## Was hier weiterhin wertvoll ist
